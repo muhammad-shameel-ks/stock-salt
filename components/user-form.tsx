@@ -140,7 +140,7 @@ export function UserForm({ isOpen, onClose, onSuccess, userToEdit }: UserFormPro
             } else {
                 // Create Phase: Use client-side signUp
                 const tempClient = createAdminClient();
-                const { error } = await tempClient.auth.signUp({
+                const { error: signUpError } = await tempClient.auth.signUp({
                     email,
                     password: formData.password,
                     options: {
@@ -155,8 +155,27 @@ export function UserForm({ isOpen, onClose, onSuccess, userToEdit }: UserFormPro
                     },
                 });
 
-                if (error) throw error;
-                toast.success("Operative registered! They can now log in.");
+                if (signUpError) {
+                    // Check if user already exists in Auth but is missing profile (Ghost User)
+                    if (signUpError.message?.toLowerCase().includes("already registered")) {
+                        const { error: relinkError } = await supabase.rpc('relink_user_profile', {
+                            p_email: email,
+                            p_full_name: formData.fullName,
+                            p_role: formData.role,
+                            p_org_id: adminProfile.org_id,
+                            p_outlet_id: formData.outletId === "none" ? null : formData.outletId,
+                            p_login_id: formData.loginId,
+                            p_plain_password: formData.password
+                        });
+
+                        if (relinkError) throw relinkError;
+                        toast.success("Existing operative's record recovered and re-enlisted!");
+                    } else {
+                        throw signUpError;
+                    }
+                } else {
+                    toast.success("Operative registered! They can now log in.");
+                }
             }
 
             onSuccess?.();
