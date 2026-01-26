@@ -181,7 +181,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const baseNav = [
       {
         title: "Dashboard",
-        url: role === "admin" ? "/dashboard" : (role === "outlet_manager" ? "/manager" : "/staff"),
+        url: role === "admin" ? "/dashboard" : (role === "manager" ? "/manager" : "/staff"),
         icon: IconDashboard,
       }
     ];
@@ -196,10 +196,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ];
     }
 
-    if (role === "outlet_manager") {
+    if (role === "manager") {
       return [
         ...baseNav,
-        { title: "Stock Control", url: "/stocks", icon: IconDatabase },
+        { title: "POS Terminal", url: "/manager/pos", icon: IconMenu2 },
       ];
     }
 
