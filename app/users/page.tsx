@@ -1,6 +1,6 @@
 "use client";
 
-import { PlusIcon, Users as UsersIcon, Shield, Store, UserCircle, Edit2, Trash2, Search, MoreVertical, Key, Lock, Eye, EyeOff } from "lucide-react";
+import { PlusIcon, Users as UsersIcon, Shield, Store, UserCircle, Edit2, Trash2, Search, MoreVertical, Key, Lock, Eye, EyeOff, CheckCircle2, RotateCcw } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/contexts/session-context";
@@ -139,6 +139,40 @@ export default function UsersPage() {
         }
     };
 
+    const handlePurge = async (userId: string) => {
+        if (!confirm("DANGER: This will permanently remove this operative's profile from your organization records. This cannot be undone. Proceed?")) return;
+
+        try {
+            const { error } = await supabase
+                .from("profiles")
+                .delete()
+                .eq("id", userId);
+
+            if (error) throw error;
+
+            toast.success("Operative purged from records");
+            fetchUsers();
+        } catch (err: any) {
+            toast.error(err.message || "Failed to purge user");
+        }
+    };
+
+    const handleReactivate = async (userId: string) => {
+        try {
+            const { error } = await supabase
+                .from("profiles")
+                .update({ role: "staff" }) // Default back to staff on reactivation
+                .eq("id", userId);
+
+            if (error) throw error;
+
+            toast.success("Operative reactivated");
+            fetchUsers();
+        } catch (err: any) {
+            toast.error(err.message || "Failed to reactivate user");
+        }
+    };
+
     return (
         <SidebarProvider>
             <AppSidebar variant="inset" />
@@ -224,8 +258,16 @@ export default function UsersPage() {
                                 {filteredUsers.map((u) => (
                                     <div
                                         key={u.id}
-                                        className="group relative bg-card border-2 border-border p-4 rounded-3xl transition-all hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 active:scale-[0.99] animate-in fade-in slide-in-from-bottom-2 duration-300 flex items-center justify-between"
+                                        className={cn(
+                                            "group relative bg-card border-2 border-border rounded-3xl transition-all hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 active:scale-[0.99] animate-in fade-in slide-in-from-bottom-2 duration-300 flex items-center justify-between p-4 overflow-hidden",
+                                            u.role === 'inactive' && "opacity-60 grayscale-[0.5] border-destructive/20"
+                                        )}
                                     >
+                                        {/* Deactivated Banner */}
+                                        {u.role === 'inactive' && (
+                                            <div className="absolute top-0 left-0 right-0 h-1 bg-destructive" />
+                                        )}
+
                                         <div className="flex items-center gap-4 min-w-0 flex-1">
                                             <div className={cn(
                                                 "h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
@@ -242,7 +284,7 @@ export default function UsersPage() {
                                                         "rounded-lg border-none font-black text-[10px] tracking-[0.10em] px-2 py-0.5 uppercase",
                                                         u.role === 'admin' ? "bg-primary/10 text-primary" : (u.role === 'manager' ? "bg-indigo-500/10 text-indigo-600" : (u.role === 'inactive' ? "bg-red-500/10 text-red-600" : "bg-emerald-500/10 text-emerald-600"))
                                                     )}>
-                                                        {u.role.replace('_', ' ')}
+                                                        {u.role === 'inactive' ? 'DEACTIVATED' : u.role.replace('_', ' ')}
                                                     </Badge>
                                                 </div>
 
@@ -290,15 +332,29 @@ export default function UsersPage() {
                                                             <MoreVertical className="h-4 w-4" />
                                                         </Button>
                                                     </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-1.5">
+                                                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-1.5 min-w-[160px]">
                                                         <DropdownMenuItem onClick={() => handleEdit(u)} className="rounded-xl flex items-center gap-2 font-bold focus:bg-primary focus:text-white cursor-pointer px-4 py-2.5 transition-all uppercase text-[10px] tracking-widest">
                                                             <Edit2 className="h-3.5 w-3.5" />
                                                             Modify
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => handleDelete(u.id)} className="rounded-xl flex items-center gap-2 font-bold text-destructive focus:bg-destructive focus:text-white cursor-pointer px-4 py-3 transition-all uppercase text-[10px] tracking-widest">
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                            Deactivate
-                                                        </DropdownMenuItem>
+
+                                                        {u.role === 'inactive' ? (
+                                                            <>
+                                                                <DropdownMenuItem onClick={() => handleReactivate(u.id)} className="rounded-xl flex items-center gap-2 font-bold text-emerald-600 focus:bg-emerald-600 focus:text-white cursor-pointer px-4 py-2.5 transition-all uppercase text-[10px] tracking-widest">
+                                                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                                                    Reactivate
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handlePurge(u.id)} className="rounded-xl flex items-center gap-2 font-black text-destructive focus:bg-destructive focus:text-white cursor-pointer px-4 py-3 transition-all uppercase text-[10px] tracking-widest bg-destructive/5 mt-1">
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                    Purge Record
+                                                                </DropdownMenuItem>
+                                                            </>
+                                                        ) : (
+                                                            <DropdownMenuItem onClick={() => handleDelete(u.id)} className="rounded-xl flex items-center gap-2 font-bold text-destructive focus:bg-destructive focus:text-white cursor-pointer px-4 py-3 transition-all uppercase text-[10px] tracking-widest mt-1">
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                Deactivate
+                                                            </DropdownMenuItem>
+                                                        )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             )}
