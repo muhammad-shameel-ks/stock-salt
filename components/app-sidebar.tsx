@@ -56,6 +56,11 @@ const data = {
       url: "/menu",
       icon: IconMenu2,
     },
+    {
+      title: "Stock Management",
+      url: "/stocks",
+      icon: IconDatabase,
+    },
   ],
   navClouds: [
     {
