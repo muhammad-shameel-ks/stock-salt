@@ -16,113 +16,79 @@ import { PlusIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/contexts/session-context";
-import { OutletForm } from "@/components/outlet-form";
+import { MenuForm } from "@/components/menu-form";
 
-// Check if supabase client is available
-if (!supabase) {
-  console.error(
-    "Supabase client not initialized. Check your environment variables.",
-  );
-}
-
-interface Outlet {
+// Define the menu item interface
+interface MenuItem {
   id: string;
   name: string;
-  location: string;
-  table_count: number;
+  base_price: number;
+  is_market_priced: boolean;
   created_at: string;
+  name_local: string;
+  category: string;
+  unit: string;
+  image_url: string;
 }
 
-export default function OutletsPage() {
-  const [outlets, setOutlets] = useState<Outlet[]>([]);
+export default function MenuPage() {
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { user } = useSession();
 
-  useEffect(() => {
+  const fetchMenuItems = async () => {
     if (!supabase) {
       console.error("Supabase client not initialized");
       setLoading(false);
       return;
     }
 
-    const fetchOutlets = async () => {
-      if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-      try {
-        // Get user's profile to get org_id
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("org_id")
-          .eq("id", user.id)
-          .single();
+    try {
+      // Get user's profile to get org_id
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
 
-        if (profileData?.org_id) {
-          // Fetch outlets for the user's organization
-          const { data, error } = await supabase
-            .from("outlets")
-            .select("*")
-            .eq("org_id", profileData.org_id)
-            .order("created_at", { ascending: false });
+      if (profileData?.org_id) {
+        // Fetch menu items for the user's organization
+        const { data, error } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("org_id", profileData.org_id)
+          .order("created_at", { ascending: false });
 
-          if (error) {
-            console.error("Error fetching outlets:", error);
-          } else {
-            setOutlets(data || []);
-          }
+        if (error) {
+          console.error("Error fetching menu items:", error);
+        } else {
+          setMenuItems(data || []);
         }
-      } catch (error) {
-        console.error("Unexpected error:", error);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (error) {
+      console.error("Unexpected error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchOutlets();
+  useEffect(() => {
+    fetchMenuItems();
   }, [user]);
 
-  const handleCreateOutlet = () => {
+  const handleCreateItem = () => {
     setShowCreateModal(true);
   };
 
   const handleSuccess = () => {
-    // Refresh outlets after successful creation
-    if (!supabase) {
-      console.error("Supabase client not initialized");
-      return;
-    }
-
-    const fetchOutlets = async () => {
-      if (!user) return;
-
-      try {
-        // Get user's profile to get org_id
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("org_id")
-          .eq("id", user.id)
-          .single();
-
-        if (profileData?.org_id) {
-          // Fetch outlets for the user's organization
-          const { data, error } = await supabase
-            .from("outlets")
-            .select("*")
-            .eq("org_id", profileData.org_id)
-            .order("created_at", { ascending: false });
-
-          if (error) {
-            console.error("Error fetching outlets:", error);
-          } else {
-            setOutlets(data || []);
-          }
-        }
-      } catch (error) {
-        console.error("Unexpected error:", error);
-      }
-    };
-
-    fetchOutlets();
+    // Refresh menu items after successful creation
+    fetchMenuItems();
   };
 
   return (
@@ -143,66 +109,66 @@ export default function OutletsPage() {
               <div className="px-4 lg:px-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h1 className="text-2xl font-bold">Outlets</h1>
+                    <h1 className="text-2xl font-bold">Menu</h1>
                     <p className="text-muted-foreground">
-                      Manage your restaurant outlets
+                      Manage your restaurant menu items
                     </p>
                   </div>
-                  <Button onClick={handleCreateOutlet}>
+                  <Button onClick={handleCreateItem}>
                     <PlusIcon className="mr-2 h-4 w-4" />
-                    Create Outlet
+                    Add Item
                   </Button>
                 </div>
               </div>
 
               {loading ? (
                 <div className="flex items-center justify-center h-64">
-                  <p>Loading outlets...</p>
+                  <p>Loading menu items...</p>
                 </div>
-              ) : outlets.length === 0 ? (
+              ) : menuItems.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed shadow-sm p-8 mx-4 lg:mx-6">
                   <div className="text-center">
-                    <h3 className="text-lg font-semibold">No outlets yet</h3>
+                    <h3 className="text-lg font-semibold">No menu items yet</h3>
                     <p className="text-muted-foreground mt-1">
-                      Create your first outlet to get started
+                      Create your first menu item to get started
                     </p>
-                    <Button className="mt-4" onClick={handleCreateOutlet}>
+                    <Button className="mt-4" onClick={handleCreateItem}>
                       <PlusIcon className="mr-2 h-4 w-4" />
-                      Create Outlet
+                      Add Menu Item
                     </Button>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mx-4 lg:mx-6">
-                  {outlets.map((outlet) => (
-                    <Card key={outlet.id} className="overflow-hidden">
+                  {menuItems.map((item) => (
+                    <Card key={item.id} className="overflow-hidden">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">
-                            {outlet.name}
-                          </CardTitle>
-                          <Badge variant="secondary">Active</Badge>
+                          <CardTitle className="text-lg">{item.name}</CardTitle>
+                          <Badge variant="secondary">
+                            {item.is_market_priced ? "Market Priced" : "Fixed"}
+                          </Badge>
                         </div>
                         <CardDescription className="text-sm">
-                          {outlet.location || "Location not specified"}
+                          {item.category || "Uncategorized"}
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
                         <div className="flex items-center justify-between pt-2 border-t">
                           <div>
                             <p className="text-xs text-muted-foreground">
-                              Tables
+                              Price
                             </p>
                             <p className="font-medium">
-                              {outlet.table_count || 0}
+                              ₹{item.base_price || 0}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">
-                              Created
+                              Unit
                             </p>
                             <p className="font-medium">
-                              {new Date(outlet.created_at).toLocaleDateString()}
+                              {item.unit || "piece"}
                             </p>
                           </div>
                         </div>
@@ -215,7 +181,7 @@ export default function OutletsPage() {
           </div>
         </div>
       </SidebarInset>
-      <OutletForm
+      <MenuForm
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={handleSuccess}
