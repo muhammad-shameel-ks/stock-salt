@@ -13,6 +13,7 @@ import {
   IconHelp,
   IconInnerShadowTop,
   IconListDetails,
+  IconMenu2,
   IconReport,
   IconSearch,
   IconSettings,
@@ -49,6 +50,11 @@ const data = {
       title: "Outlets",
       url: "/outlets",
       icon: IconListDetails,
+    },
+    {
+      title: "Menu",
+      url: "/menu",
+      icon: IconMenu2,
     },
   ],
   navClouds: [

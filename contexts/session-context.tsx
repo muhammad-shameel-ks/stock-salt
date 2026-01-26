@@ -39,7 +39,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Listen for auth changes
       const {
         data: { subscription },
-      } = await supabase.auth.onAuthStateChange((_event, session) => {
+      } = await supabase.auth.onAuthStateChange((event: any, session: any) => {
         setSession(session);
         setUser(session?.user || null);
         setLoading(false);
