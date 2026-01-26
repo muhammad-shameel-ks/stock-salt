@@ -1,7 +1,6 @@
 @import "tailwindcss";
 /* Force refresh */
 
-
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
