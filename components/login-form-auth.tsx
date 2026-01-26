@@ -44,8 +44,23 @@ export function LoginForm({
       if (error) {
         setError(error.message);
       } else {
-        // Redirect to dashboard or home page after successful login
-        router.push("/dashboard");
+        // Fetch user role for specific redirect
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .single();
+
+          if (profile?.role === "manager") {
+            router.push("/manager");
+          } else {
+            router.push("/dashboard");
+          }
+        } else {
+          router.push("/dashboard");
+        }
         router.refresh();
       }
     } catch (err) {

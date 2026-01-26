@@ -56,6 +56,7 @@ export default function POSPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("ALL");
     const [isSettleOpen, setIsSettleOpen] = useState(false);
+    const [isReviewOpen, setIsReviewOpen] = useState(false);
     const { user } = useSession();
 
     useEffect(() => {
@@ -170,6 +171,7 @@ export default function POSPage() {
 
             toast.success("Transaction Settle Successful!");
             setCart([]);
+            setIsReviewOpen(false);
             setIsSettleOpen(false);
         } catch (err: any) {
             toast.error(err.message || "Settle failed");
@@ -342,11 +344,12 @@ export default function POSPage() {
                                     </Button>
                                 </SheetTrigger>
                                 <SheetContent side="bottom" className="rounded-t-[3rem] p-8 lg:p-12 border-none h-auto bg-card shadow-[0_-25px_50px_-12px_rgba(0,0,0,0.5)]">
+                                    <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mb-8 opacity-40" />
                                     <div className="max-w-screen-md mx-auto space-y-12 pb-12">
-                                        <div className="space-y-2 text-center">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Final Settlement</p>
-                                            <h2 className="text-6xl font-black italic tracking-tighter">₹{cartTotal}</h2>
-                                        </div>
+                                        <SheetHeader className="text-center p-0">
+                                            <SheetTitle className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Final Settlement</SheetTitle>
+                                            <SheetDescription className="text-6xl font-black italic tracking-tighter text-foreground block">₹{cartTotal}</SheetDescription>
+                                        </SheetHeader>
 
                                         <div className="grid grid-cols-3 gap-6">
                                             {[
@@ -377,7 +380,7 @@ export default function POSPage() {
 
                     {/* MOBILE FLOATING CART BUTTON */}
                     <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-48px)]">
-                        <Sheet>
+                        <Sheet open={isReviewOpen} onOpenChange={setIsReviewOpen}>
                             <SheetTrigger asChild>
                                 <Button
                                     className={cn(
@@ -403,13 +406,17 @@ export default function POSPage() {
                                 </Button>
                             </SheetTrigger>
                             <SheetContent side="bottom" className="h-[90vh] rounded-t-[3rem] p-0 overflow-hidden bg-card border-none">
+                                <div className="w-12 h-1.5 bg-muted rounded-full mx-auto my-4 opacity-40" />
                                 <div className="flex flex-col h-full">
-                                    <div className="p-6 border-b flex items-center justify-between sticky top-0 bg-card z-10">
-                                        <h3 className="font-black italic uppercase tracking-widest">Order Review</h3>
-                                        <Button variant="ghost" className="h-10 w-10 p-0" onClick={() => setCart([])}>
-                                            <Trash2 className="h-5 w-5" />
-                                        </Button>
-                                    </div>
+                                    <SheetHeader className="p-6 border-b flex flex-row items-center justify-between sticky top-0 bg-card z-10 space-y-0">
+                                        <SheetTitle className="font-black italic uppercase tracking-widest text-base">Order Review</SheetTitle>
+                                        <div className="flex items-center gap-2">
+                                            <Button variant="ghost" className="h-10 w-10 p-0" onClick={() => setCart([])}>
+                                                <Trash2 className="h-5 w-5" />
+                                            </Button>
+                                        </div>
+                                        <SheetDescription className="sr-only">Review your items before checkout</SheetDescription>
+                                    </SheetHeader>
                                     <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-40">
                                         {cart.map(item => (
                                             <div key={item.id} className="p-4 rounded-3xl bg-muted/40 border">
