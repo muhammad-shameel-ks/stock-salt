@@ -3,7 +3,8 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { Store, TrendingUp, Package, AlertCircle } from "lucide-react";
+import { Store, TrendingUp, Package, AlertCircle, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export default function ManagerDashboard() {
@@ -34,6 +35,17 @@ export default function ManagerDashboard() {
                                         <p className="text-[10px] font-black uppercase opacity-60 mb-1">Active Staff</p>
                                         <span className="text-2xl font-black italic">4 On Duty</span>
                                     </div>
+                                </div>
+                                <div className="mt-8 flex gap-4">
+                                    <Button
+                                        asChild
+                                        className="bg-white text-indigo-600 hover:bg-white/90 rounded-full px-8 font-black italic uppercase tracking-widest shadow-xl active:scale-95 transition-all text-xs h-12"
+                                    >
+                                        <a href="/manager/pos" className="flex items-center gap-2">
+                                            Open Checkout Terminal
+                                            <ChevronRight className="h-4 w-4" />
+                                        </a>
+                                    </Button>
                                 </div>
                             </div>
                             <Store className="absolute -right-8 -bottom-8 h-48 w-48 text-white/10 rotate-12" />
