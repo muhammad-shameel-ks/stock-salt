@@ -15,8 +15,9 @@ import {
     RefreshCcw,
     Activity
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { useSession } from "@/contexts/session-context";
 import { toast } from "sonner";
 import {
     AlertDialog,
@@ -31,22 +32,40 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function SettingsPage() {
+    const { user } = useSession();
     const [resetting, setResetting] = useState(false);
+    const [role, setRole] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchRole = async () => {
+            if (!user) return;
+            const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+            if (data) setRole(data.role);
+        };
+        fetchRole();
+    }, [user]);
 
     const handleResetAllData = async () => {
         setResetting(true);
         try {
-            // We'll execute this via the client's RPC or multiple queries if rpc is not setup.
-            // For safety in this environment, we'll use raw SQL execution if possible, 
-            // but usually we prefer a safe rpc. Since I don't have a reset rpc, 
-            // I'll use the supabase client to delete rows.
+            // Correct order: items first due to foreign keys, then headers
+            // transaction_items does NOT have org_id, so we use a universal range filter if needed or just .delete() with a dummy where
 
-            const tables = ['transaction_items', 'transactions', 'daily_stocks', 'master_stocks'];
+            // 1. Clear items (No org_id on this table)
+            const { error: itemErr } = await supabase.from('transaction_items').delete().filter('quantity', 'gte', 0);
+            if (itemErr) throw itemErr;
 
-            for (const table of tables) {
-                const { error } = await supabase.from(table).delete().neq('org_id', '00000000-0000-0000-0000-000000000000'); // Delete all
-                if (error) throw error;
-            }
+            // 2. Clear transactions (Has org_id)
+            const { error: txErr } = await supabase.from('transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            if (txErr) throw txErr;
+
+            // 3. Clear daily stocks
+            const { error: dsErr } = await supabase.from('daily_stocks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            if (dsErr) throw dsErr;
+
+            // 4. Clear master stocks
+            const { error: msErr } = await supabase.from('master_stocks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            if (msErr) throw msErr;
 
             toast.success("System Reset Successful", {
                 description: "All transactions and stock records have been purged."
@@ -54,7 +73,7 @@ export default function SettingsPage() {
         } catch (error) {
             console.error("Reset error:", error);
             toast.error("Format Failed", {
-                description: "Could not clear all database tables."
+                description: "Could not clear all database tables. Check console for details."
             });
         } finally {
             setResetting(false);
@@ -96,49 +115,51 @@ export default function SettingsPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Danger Zone */}
-                        <Card className="rounded-[2.5rem] border-2 border-destructive/20 bg-destructive/5 shadow-lg relative overflow-hidden group">
-                            <CardHeader>
-                                <div className="flex items-center gap-3 text-destructive">
-                                    <ShieldAlert className="h-5 w-5" />
-                                    <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Danger Zone</CardTitle>
-                                </div>
-                                <CardDescription className="text-xs font-bold uppercase tracking-widest text-destructive/60">Destructive Actions</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="space-y-2">
-                                    <h4 className="font-black text-sm uppercase">Full System Reset</h4>
-                                    <p className="text-xs text-muted-foreground font-medium">This will permanently delete all transaction history, stock distribution logs, and master inventory for today. This action is irreversible.</p>
-                                </div>
+                        {/* Danger Zone - Admin Only */}
+                        {role === 'admin' && (
+                            <Card className="rounded-[2.5rem] border-2 border-destructive/20 bg-destructive/5 shadow-lg relative overflow-hidden group">
+                                <CardHeader>
+                                    <div className="flex items-center gap-3 text-destructive">
+                                        <ShieldAlert className="h-5 w-5" />
+                                        <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Danger Zone</CardTitle>
+                                    </div>
+                                    <CardDescription className="text-xs font-bold uppercase tracking-widest text-destructive/60">Destructive Actions</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <div className="space-y-2">
+                                        <h4 className="font-black text-sm uppercase">Full System Reset</h4>
+                                        <p className="text-xs text-muted-foreground font-medium">This will permanently delete all transaction history, stock distribution logs, and master inventory for today. This action is irreversible.</p>
+                                    </div>
 
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="destructive" className="w-full h-12 rounded-2xl font-black italic tracking-tighter uppercase shadow-lg shadow-destructive/20 group">
-                                            <Trash2 className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" />
-                                            Nuke All Data
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent className="rounded-[2rem] border-2">
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle className="font-black italic text-2xl uppercase tracking-tighter">Are you absolutely sure?</AlertDialogTitle>
-                                            <AlertDialogDescription className="font-medium">
-                                                This action cannot be undone. This will permanently delete your **entire transaction history** and **stock logs** across all outlets.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter className="gap-2">
-                                            <AlertDialogCancel className="rounded-xl font-bold uppercase tracking-widest text-[10px]">Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                                onClick={handleResetAllData}
-                                                className="rounded-xl bg-destructive hover:bg-destructive/90 font-black italic uppercase tracking-tighter px-8"
-                                            >
-                                                Yes, Purge everything
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </CardContent>
-                            <Trash2 className="absolute -right-8 -bottom-8 h-32 w-32 text-destructive/5 -rotate-12 group-hover:rotate-0 transition-transform duration-700" />
-                        </Card>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" className="w-full h-12 rounded-2xl font-black italic tracking-tighter uppercase shadow-lg shadow-destructive/20 group">
+                                                <Trash2 className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" />
+                                                Nuke All Data
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent className="rounded-[2rem] border-2">
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle className="font-black italic text-2xl uppercase tracking-tighter">Are you absolutely sure?</AlertDialogTitle>
+                                                <AlertDialogDescription className="font-medium">
+                                                    This action cannot be undone. This will permanently delete your **entire transaction history** and **stock logs** across all outlets.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter className="gap-2">
+                                                <AlertDialogCancel className="rounded-xl font-bold uppercase tracking-widest text-[10px]">Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    onClick={handleResetAllData}
+                                                    className="rounded-xl bg-destructive hover:bg-destructive/90 font-black italic uppercase tracking-tighter px-8"
+                                                >
+                                                    Yes, Purge everything
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </CardContent>
+                                <Trash2 className="absolute -right-8 -bottom-8 h-32 w-32 text-destructive/5 -rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                            </Card>
+                        )}
                     </div>
 
                 </div>
