@@ -69,12 +69,19 @@ interface MasterStock {
     stock_date: string;
     total_quantity: number;
     daily_price?: number;
+    transaction_items: {
+        item_id: string;
+        quantity: number;
+        transactions: {
+            outlet_id: string;
+        };
+    }[];
 }
 
 interface TransactionItem {
     item_id: string;
     quantity: number;
-    transaction: {
+    transactions: {
         outlet_id: string;
     };
 }
