@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { getStartOfTodayUTC } from "@/lib/utils";
 import {
     Card,
     CardContent,
@@ -70,6 +71,14 @@ interface MasterStock {
     daily_price?: number;
 }
 
+interface TransactionItem {
+    item_id: string;
+    quantity: number;
+    transaction: {
+        outlet_id: string;
+    };
+}
+
 export default function StocksPage() {
     const { user } = useSession();
     const [loading, setLoading] = useState(true);
@@ -77,6 +86,7 @@ export default function StocksPage() {
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [distributedStocks, setDistributedStocks] = useState<DailyStock[]>([]);
     const [masterStocks, setMasterStocks] = useState<MasterStock[]>([]);
+    const [soldItems, setSoldItems] = useState<TransactionItem[]>([]);
 
     // UI State
     const [viewMode, setViewMode] = useState<"hub" | "distribution" | "master">("hub");
@@ -103,17 +113,20 @@ export default function StocksPage() {
                 .single();
 
             if (profile?.org_id) {
-                const [outletsRes, menuRes, stocksRes, masterRes] = await Promise.all([
+                const [outletsRes, menuRes, stocksRes, masterRes, soldRes] = await Promise.all([
                     supabase.from("outlets").select("*").eq("org_id", profile.org_id).order("name"),
                     supabase.from("menu_items").select("*").eq("org_id", profile.org_id).order("name"),
                     supabase.from("daily_stocks").select("*").eq("org_id", profile.org_id).eq("stock_date", formattedDate),
-                    supabase.from("master_stocks").select("*").eq("org_id", profile.org_id).eq("stock_date", formattedDate)
+                    supabase.from("master_stocks").select("*").eq("org_id", profile.org_id).eq("stock_date", formattedDate),
+                    supabase.from("transaction_items").select("item_id, quantity, transactions!inner(outlet_id)").eq("transactions.org_id", profile.org_id).gte("transactions.created_at", getStartOfTodayUTC())
                 ]);
 
                 setOutlets(outletsRes.data || []);
                 setMenuItems(menuRes.data || []);
                 setDistributedStocks(stocksRes.data || []);
                 setMasterStocks(masterRes.data || []);
+                // @ts-ignore
+                setSoldItems(soldRes.data || []);
             }
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -125,17 +138,29 @@ export default function StocksPage() {
 
     useEffect(() => {
         fetchData();
+
+        // Realtime Subscription for Admin Hub
+        const channel = supabase
+            .channel('admin-stocks-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_stocks' }, () => fetchData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'transaction_items' }, () => fetchData())
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user, formattedDate]);
 
     // Initialize local quantities based on view mode
     useEffect(() => {
         if (viewMode === "distribution" && selectedOutletId) {
+            // In distribution mode, localQuantities manage the "Delta" (Adjustment)
+            // so we initialize to 0.
             const initial: Record<string, number> = {};
-            distributedStocks
-                .filter(s => s.outlet_id === selectedOutletId)
-                .forEach(s => {
-                    initial[s.item_id] = Number(s.quantity);
-                });
+            menuItems.forEach(item => {
+                initial[item.id] = 0;
+            });
             setLocalQuantities(initial);
         } else if (viewMode === "master") {
             const initialQty: Record<string, number> = {};
@@ -192,11 +217,55 @@ export default function StocksPage() {
         return Number(masterEntry.total_quantity) - totalDistributed;
     };
 
+    // Live Calculation Logic
+    const getLiveMetrics = (itemId: string, outletId: string | null) => {
+        const totalDistributed = distributedStocks
+            .filter(s => s.item_id === itemId && (outletId ? s.outlet_id === outletId : true))
+            .reduce((sum, s) => sum + Number(s.quantity), 0);
+
+        const totalSold = soldItems
+            .filter(s => s.item_id === itemId && (outletId ? s.transactions?.outlet_id === outletId : true))
+            .reduce((sum, s) => sum + Number(s.quantity), 0);
+
+        return {
+            distributed: totalDistributed,
+            sold: totalSold,
+            live: Math.max(0, totalDistributed - totalSold)
+        };
+    };
+
+    const globalMetrics = useMemo(() => {
+        const totalDistributed = distributedStocks.reduce((sum, s) => sum + Number(s.quantity), 0);
+        const totalSold = soldItems.reduce((sum, s) => sum + Number(s.quantity), 0);
+
+        return {
+            sent: totalDistributed,
+            sold: totalSold,
+            live: Math.max(0, totalDistributed - totalSold)
+        };
+    }, [distributedStocks, soldItems]);
+
     const handleUpdateLocal = (itemId: string, value: number) => {
         if (viewMode === "distribution") {
-            const remaining = getRemainingStock(itemId);
-            if (value > remaining) {
-                toast.error(`Only ${remaining} ${menuItems.find(m => m.id === itemId)?.unit} remaining!`);
+            const item = menuItems.find(m => m.id === itemId);
+            if (!item?.requires_daily_stock) {
+                setLocalQuantities(prev => ({ ...prev, [itemId]: value }));
+                return;
+            }
+
+            // Check against Global Master Availability
+            const masterEntry = masterStocks.find(s => s.item_id === itemId);
+            if (!masterEntry) return;
+
+            const globalDistributed = distributedStocks
+                .filter(s => s.item_id === itemId)
+                .reduce((sum, s) => sum + Number(s.quantity), 0);
+
+            const currentGlobalTotal = Number(masterEntry.total_quantity);
+            const delta = value; // localQuantities is the DELTA in distribution mode
+
+            if (globalDistributed + delta > currentGlobalTotal) {
+                toast.error(`Not enough master stock! Max adjustment: ${currentGlobalTotal - globalDistributed}`);
                 return;
             }
         }
@@ -283,8 +352,9 @@ export default function StocksPage() {
 
             if (!profile?.org_id) return;
 
+            // In new logic, we just INSERT the adjustments (deltas)
             const upserts = Object.entries(localQuantities)
-                .filter(([_, qty]) => qty > 0)
+                .filter(([_, qty]) => qty !== 0) // Allow negative or positive adjustments
                 .map(([itemId, qty]) => ({
                     org_id: profile.org_id,
                     outlet_id: selectedOutletId,
@@ -295,22 +365,14 @@ export default function StocksPage() {
                     created_by: user.id
                 }));
 
-            const itemsToDelete = Object.entries(localQuantities)
-                .filter(([_, qty]) => qty === 0)
-                .map(([itemId, _]) => itemId);
-
-            if (itemsToDelete.length > 0) {
-                await supabase
-                    .from("daily_stocks")
-                    .delete()
-                    .eq("outlet_id", selectedOutletId)
-                    .eq("stock_date", formattedDate)
-                    .in("item_id", itemsToDelete);
+            if (upserts.length === 0) {
+                setViewMode("hub");
+                return;
             }
 
             const { error } = await supabase
                 .from("daily_stocks")
-                .upsert(upserts, { onConflict: 'outlet_id,item_id,stock_date' });
+                .insert(upserts);
 
             if (error) throw error;
 
@@ -405,26 +467,40 @@ export default function StocksPage() {
 
                                         <div className="flex flex-col gap-3">
                                             <div className="w-[180px]">
-                                                <StockCounter
-                                                    value={localQuantities[item.id] || 0}
-                                                    onChange={(val) => handleUpdateLocal(item.id, val)}
-                                                    unit={item.unit}
-                                                    max={viewMode === "distribution" ? getRemainingStock(item.id) : undefined}
-                                                />
+                                                {viewMode === "distribution" ? (
+                                                    <StockCounter
+                                                        value={localQuantities[item.id] || 0}
+                                                        onChange={(val) => handleUpdateLocal(item.id, val)}
+                                                        unit={item.unit}
+                                                        isAdjustment={true}
+                                                    />
+                                                ) : (
+                                                    <StockCounter
+                                                        value={localQuantities[item.id] || 0}
+                                                        onChange={(val) => handleUpdateLocal(item.id, val)}
+                                                        unit={item.unit}
+                                                    />
+                                                )}
                                             </div>
 
                                             {/* Info/Price area */}
                                             {viewMode === "distribution" && (
-                                                <div className="flex items-center justify-end px-1">
+                                                <div className="space-y-1 text-right">
                                                     {item.requires_daily_stock ? (
-                                                        <p className={cn(
-                                                            "text-[10px] font-bold uppercase tracking-wider",
-                                                            getRemainingStock(item.id) - (localQuantities[item.id] || 0) <= 0
-                                                                ? "text-destructive"
-                                                                : "text-muted-foreground/60"
-                                                        )}>
-                                                            Remaining: {getRemainingStock(item.id) - (localQuantities[item.id] || 0)} {item.unit}
-                                                        </p>
+                                                        <>
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <span className="text-[9px] font-black uppercase opacity-40">Live on Ground:</span>
+                                                                <Badge variant="outline" className="text-[10px] font-black bg-emerald-500/5 text-emerald-600 border-emerald-500/20">
+                                                                    {getLiveMetrics(item.id, selectedOutletId).live} {item.unit}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <span className="text-[9px] font-black uppercase opacity-40">New Balance:</span>
+                                                                <span className="text-[10px] font-black italic">
+                                                                    {getLiveMetrics(item.id, selectedOutletId).live + (localQuantities[item.id] || 0)} {item.unit}
+                                                                </span>
+                                                            </div>
+                                                        </>
                                                     ) : (
                                                         <Badge variant="outline" className="text-[8px] px-1.5 py-0 border-primary/20 text-primary bg-primary/5 leading-none h-4 uppercase font-black">Continuous Supply</Badge>
                                                     )}
@@ -584,12 +660,36 @@ export default function StocksPage() {
                             )}
 
                             {/* Section Header */}
-                            <div className="flex items-center justify-between mb-4 pl-1">
-                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80">Outlet Distribution</h3>
+                            <div className="flex items-center justify-between mb-8 pl-1">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80">Global Logistics</h3>
                                 <div className="flex items-center gap-1.5">
                                     <div className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Syncing Live</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Live Sync</span>
                                 </div>
+                            </div>
+
+                            {/* Global Metrics Cards */}
+                            <div className="grid grid-cols-3 gap-3 mb-10">
+                                <div className="p-5 rounded-[2rem] bg-card border-2 shadow-sm flex flex-col gap-1">
+                                    <span className="text-[9px] font-black uppercase tracking-wider opacity-40">Total Sent</span>
+                                    <span className="text-2xl font-black italic tracking-tighter tabular-nums">{globalMetrics.sent}</span>
+                                    <div className="h-1 w-8 bg-primary/20 rounded-full mt-1" />
+                                </div>
+                                <div className="p-5 rounded-[2rem] bg-card border-2 shadow-sm flex flex-col gap-1">
+                                    <span className="text-[9px] font-black uppercase tracking-wider opacity-40">Live Sales</span>
+                                    <span className="text-2xl font-black italic tracking-tighter tabular-nums text-emerald-600">{globalMetrics.sold}</span>
+                                    <div className="h-1 w-8 bg-emerald-500/20 rounded-full mt-1" />
+                                </div>
+                                <div className="p-5 rounded-[2rem] bg-card border-2 shadow-sm flex flex-col gap-1">
+                                    <span className="text-[9px] font-black uppercase tracking-wider opacity-40">On Ground</span>
+                                    <span className="text-2xl font-black italic tracking-tighter tabular-nums">{globalMetrics.live}</span>
+                                    <div className="h-1 w-8 bg-amber-500/20 rounded-full mt-1" />
+                                </div>
+                            </div>
+
+                            {/* Section Header */}
+                            <div className="flex items-center justify-between mb-4 pl-1">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80">Outlet Distribution</h3>
                             </div>
 
                             <div className="space-y-3">

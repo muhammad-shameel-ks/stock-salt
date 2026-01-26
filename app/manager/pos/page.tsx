@@ -22,10 +22,21 @@ import {
     QrCode,
     X,
     UtensilsCrossed,
-    Zap
+    Zap,
+    AlertTriangle
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getLocalTodayString, getStartOfTodayUTC } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     Sheet,
     SheetContent,
@@ -43,6 +54,7 @@ interface MenuItem {
     category: string;
     base_price: number;
     image_url: string | null;
+    requires_daily_stock: boolean;
 }
 
 interface CartItem extends MenuItem {
@@ -57,10 +69,39 @@ export default function POSPage() {
     const [selectedCategory, setSelectedCategory] = useState("ALL");
     const [isSettleOpen, setIsSettleOpen] = useState(false);
     const [isReviewOpen, setIsReviewOpen] = useState(false);
+    const [inventory, setInventory] = useState<Record<string, number>>({});
+    const [isStockWarningOpen, setIsStockWarningOpen] = useState(false);
+    const [pendingItem, setPendingItem] = useState<MenuItem | null>(null);
+    const [isLocked, setIsLocked] = useState(false);
     const { user } = useSession();
 
+    const todayLocal = getLocalTodayString();
+    const startOfTodayUTC = getStartOfTodayUTC();
+
     useEffect(() => {
-        fetchMenu();
+        if (user) {
+            fetchMenu();
+            fetchInventory();
+
+            // Realtime Subscription
+            const channel = supabase
+                .channel('pos-realtime')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'daily_stocks'
+                }, () => fetchInventory())
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'transactions'
+                }, () => fetchInventory())
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(channel);
+            };
+        }
     }, [user]);
 
     const fetchMenu = async () => {
@@ -90,6 +131,58 @@ export default function POSPage() {
         }
     };
 
+    const fetchInventory = async () => {
+        if (!user) return;
+        try {
+            const { data: profile } = await supabase
+                .from("profiles")
+                .select("org_id, outlet_id")
+                .eq("id", user.id)
+                .single();
+
+            if (!profile) return;
+
+            // 1. Fetch all distributions for today
+            const { data: stocks } = await supabase
+                .from("daily_stocks")
+                .select("item_id, quantity")
+                .eq("outlet_id", profile.outlet_id)
+                .eq("stock_date", todayLocal);
+
+            // 2. Fetch all sales for today (since local day began)
+            const { data: txs } = await supabase
+                .from("transactions")
+                .select("transaction_items(item_id, quantity)")
+                .eq("outlet_id", profile.outlet_id)
+                .gte("created_at", startOfTodayUTC);
+
+            const stockMap: Record<string, number> = {};
+
+            // Add distributions
+            stocks?.forEach(s => {
+                stockMap[s.item_id] = (stockMap[s.item_id] || 0) + Number(s.quantity);
+            });
+
+            // Subtract sales
+            txs?.forEach(tx => {
+                // @ts-ignore
+                tx.transaction_items?.forEach((item: any) => {
+                    stockMap[item.item_id] = (stockMap[item.item_id] || 0) - Number(item.quantity);
+                });
+            });
+
+            setInventory(stockMap);
+
+            // Lockdown Logic: Only lock if there are tracked items in the menu 
+            // but none are distributed for today.
+            const hasStockForToday = stocks && stocks.length > 0;
+            setIsLocked(!hasStockForToday);
+
+        } catch (err) {
+            console.error("Inv fetch error:", err);
+        }
+    };
+
     const categories = useMemo(() => {
         const cats = Array.from(new Set(menu.map(item => item.category)));
         return ["ALL", ...cats];
@@ -105,6 +198,31 @@ export default function POSPage() {
     }, [menu, searchQuery, selectedCategory]);
 
     const addToCart = (item: MenuItem) => {
+        const remaining = inventory[item.id] || 0;
+        const currentInCart = cart.find(i => i.id === item.id)?.quantity || 0;
+
+        // Skip stock check for continuous supply items
+        if (!item.requires_daily_stock) {
+            setCart(prev => {
+                const existing = prev.find(i => i.id === item.id);
+                if (existing) {
+                    return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+                }
+                return [...prev, { ...item, quantity: 1 }];
+            });
+            return;
+        }
+
+        // Strict Enforcement: No bypass
+        if (remaining - currentInCart <= 0) {
+            toast.error("Item Out of Stock!", {
+                icon: <AlertTriangle className="h-4 w-4 text-destructive" />,
+                description: "This item must be distributed by Admin before sale.",
+                className: "rounded-2xl border-2 font-black italic uppercase text-[10px] tracking-widest"
+            });
+            return;
+        }
+
         setCart(prev => {
             const existing = prev.find(i => i.id === item.id);
             if (existing) {
@@ -173,6 +291,7 @@ export default function POSPage() {
             setCart([]);
             setIsReviewOpen(false);
             setIsSettleOpen(false);
+            fetchInventory(); // Immediate stock refresh
         } catch (err: any) {
             toast.error(err.message || "Settle failed");
         } finally {
@@ -241,8 +360,9 @@ export default function POSPage() {
                                                 key={item.id}
                                                 onClick={() => addToCart(item)}
                                                 className={cn(
-                                                    "group relative bg-card rounded-[2rem] border-2 border-transparent p-4 transition-all active:scale-95 cursor-pointer flex flex-col gap-3",
-                                                    count > 0 ? "border-primary shadow-xl shadow-primary/10" : "hover:border-border hover:shadow-lg"
+                                                    "group relative bg-card rounded-[2rem] border-2 border-transparent p-4 transition-all active:scale-95 cursor-pointer flex flex-col gap-3 overflow-hidden",
+                                                    count > 0 ? "border-primary shadow-xl shadow-primary/10" : "hover:border-border hover:shadow-lg",
+                                                    (item.requires_daily_stock && (inventory[item.id] || 0) <= 0) && "opacity-60 saturate-50"
                                                 )}
                                             >
                                                 <div className="aspect-square rounded-2xl bg-muted/50 overflow-hidden relative">
@@ -253,11 +373,26 @@ export default function POSPage() {
                                                             <Zap className="h-12 w-12" />
                                                         </div>
                                                     )}
+
                                                     {count > 0 && (
-                                                        <div className="absolute top-2 right-2 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black animate-in zoom-in duration-300">
+                                                        <div className="absolute top-2 right-2 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black animate-in zoom-in duration-300 shadow-lg">
                                                             {count}
                                                         </div>
                                                     )}
+
+                                                    {/* Stock Badge */}
+                                                    <div className={cn(
+                                                        "absolute bottom-2 left-2 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest backdrop-blur-md border shadow-sm",
+                                                        !item.requires_daily_stock
+                                                            ? "bg-primary/20 text-primary border-primary/30"
+                                                            : (inventory[item.id] || 0) <= 0
+                                                                ? "bg-destructive/10 text-destructive border-destructive/20"
+                                                                : "bg-black/40 text-white border-white/20"
+                                                    )}>
+                                                        {!item.requires_daily_stock
+                                                            ? "Continuous"
+                                                            : (inventory[item.id] || 0) <= 0 ? "Out of Stock" : `${inventory[item.id]} in stock`}
+                                                    </div>
                                                 </div>
                                                 <div className="space-y-1">
                                                     <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">{item.category}</p>
@@ -459,6 +594,31 @@ export default function POSPage() {
                     </div>
 
                 </div>
+
+                {/* POS Lockdown Overlay */}
+                {isLocked && (
+                    <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-500">
+                        <div className="max-w-md w-full bg-card rounded-[3rem] border-2 border-primary/20 p-12 text-center shadow-2xl relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent -z-10 group-hover:scale-110 transition-transform duration-1000" />
+                            <div className="h-24 w-24 rounded-[2.5rem] bg-primary/10 flex items-center justify-center text-primary mx-auto mb-8 animate-bounce transition-all duration-300">
+                                <Zap className="h-12 w-12" />
+                            </div>
+                            <h2 className="text-4xl font-black italic tracking-tighter uppercase mb-4 leading-none">POS Locked</h2>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-8">Waiting for Today&apos;s Stock to arrive</p>
+
+                            <div className="space-y-4 text-left">
+                                <div className="p-4 rounded-2xl bg-muted/30 border border-border/50">
+                                    <p className="font-bold text-xs opacity-60 uppercase mb-2">Instructions</p>
+                                    <p className="text-[13px] font-medium leading-relaxed">The terminal is suspended until the Admin distributes the master stock for today. Please contact the main hub to confirm shipment arrival.</p>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 px-4 rounded-full bg-emerald-500/5 text-emerald-600 border border-emerald-500/10 w-fit mx-auto">
+                                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">Listening for Sync</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </SidebarInset>
         </SidebarProvider>
     );

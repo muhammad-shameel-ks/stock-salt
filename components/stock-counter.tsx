@@ -12,6 +12,7 @@ interface StockCounterProps {
     className?: string;
     min?: number;
     max?: number;
+    isAdjustment?: boolean;
 }
 
 export function StockCounter({
@@ -21,6 +22,7 @@ export function StockCounter({
     className,
     min = 0,
     max = Infinity,
+    isAdjustment = false,
 }: StockCounterProps) {
     const handleIncrement = () => {
         if (value < max) {
@@ -29,7 +31,7 @@ export function StockCounter({
     };
 
     const handleDecrement = () => {
-        if (value > min) {
+        if (isAdjustment || value > min) {
             onChange(Number((value - 1).toFixed(2)));
         }
     };
@@ -50,7 +52,7 @@ export function StockCounter({
                 size="icon"
                 className="h-10 w-10 rounded-full active:scale-95 transition-transform"
                 onClick={handleDecrement}
-                disabled={value <= min}
+                disabled={!isAdjustment && value <= min}
                 type="button"
             >
                 <Minus className="h-4 w-4" />
@@ -59,7 +61,7 @@ export function StockCounter({
             <div className="relative flex-1 min-w-[80px]">
                 <Input
                     type="number"
-                    value={value === 0 ? "" : value}
+                    value={value === 0 && !isAdjustment ? "" : value}
                     onChange={handleInputChange}
                     placeholder="0"
                     className="h-10 text-center font-semibold text-lg pr-8"

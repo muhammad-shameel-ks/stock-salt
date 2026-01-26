@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -20,14 +20,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/contexts/session-context";
-import { cn } from "@/lib/utils";
+import { cn, getLocalTodayString, getStartOfTodayUTC } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface InventoryItem {
     id: string;
     item_id: string;
     quantity: number;
     unit: string;
+    created_at: string;
     menu_items: {
         name: string;
         category: string;
@@ -46,16 +55,40 @@ export default function ManagerDashboard() {
     const { user } = useSession();
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [allDistributions, setAllDistributions] = useState<InventoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewType, setViewType] = useState<"day" | "week">("day");
+    const [selectedItemForHistory, setSelectedItemForHistory] = useState<string | null>(null);
+
+    const todayLocal = getLocalTodayString();
+    const startOfTodayUTC = getStartOfTodayUTC();
 
     useEffect(() => {
         if (user) {
-            fetchDashboardData();
+            fetchData();
+
+            // Realtime Sync
+            const channel = supabase
+                .channel('manager-dash-realtime')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'daily_stocks'
+                }, () => fetchData())
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'transactions'
+                }, () => fetchData())
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(channel);
+            };
         }
     }, [user, viewType]);
 
-    const fetchDashboardData = async () => {
+    const fetchData = async () => {
         setLoading(true);
         try {
             const { data: profile } = await supabase
@@ -66,7 +99,7 @@ export default function ManagerDashboard() {
 
             if (!profile) return;
 
-            // Fetch Current Inventory
+            // Fetch Current Inventory Distributions for Today
             const { data: invData } = await supabase
                 .from("daily_stocks")
                 .select(`
@@ -74,22 +107,24 @@ export default function ManagerDashboard() {
                     item_id, 
                     quantity, 
                     unit,
+                    created_at,
                     menu_items (name, category)
                 `)
                 .eq("outlet_id", profile.outlet_id)
-                .eq("stock_date", new Date().toISOString().split('T')[0]);
+                .eq("stock_date", todayLocal);
 
-            setInventory(invData as any || []);
+            setAllDistributions(invData as any || []);
 
             // Fetch Recent Transactions
             let query = supabase
                 .from("transactions")
-                .select("*")
+                .select("*, transaction_items(*)")
                 .eq("org_id", profile.org_id)
+                .eq("outlet_id", profile.outlet_id)
                 .order("created_at", { ascending: false });
 
             if (viewType === "day") {
-                query = query.gte("created_at", new Date().toISOString().split('T')[0]);
+                query = query.gte("created_at", startOfTodayUTC);
             } else {
                 const weekAgo = new Date();
                 weekAgo.setDate(weekAgo.getDate() - 7);
@@ -105,6 +140,51 @@ export default function ManagerDashboard() {
             setLoading(false);
         }
     };
+
+    const aggregatedInventory = useMemo(() => {
+        const map = new Map<string, {
+            name: string;
+            category: string;
+            total: number;
+            remaining: number;
+            unit: string;
+            distributions: InventoryItem[];
+        }>();
+
+        allDistributions.forEach(dist => {
+            const existing = map.get(dist.item_id);
+            if (existing) {
+                existing.total += Number(dist.quantity);
+                existing.remaining += Number(dist.quantity);
+                existing.distributions.push(dist);
+            } else {
+                map.set(dist.item_id, {
+                    name: dist.menu_items?.name || "Unknown",
+                    category: dist.menu_items?.category || "General",
+                    total: Number(dist.quantity),
+                    remaining: Number(dist.quantity),
+                    unit: dist.unit,
+                    distributions: [dist]
+                });
+            }
+        });
+
+        // Subtract sales (only for today's view)
+        transactions.forEach(tx => {
+            const txDate = new Date(tx.created_at).toLocaleDateString('en-CA');
+            if (txDate === todayLocal) {
+                // @ts-ignore
+                tx.transaction_items?.forEach((item: { item_id: string; quantity: number | string }) => {
+                    const inv = map.get(item.item_id);
+                    if (inv) {
+                        inv.remaining -= Number(item.quantity);
+                    }
+                });
+            }
+        });
+
+        return Array.from(map.entries()).map(([id, data]) => ({ id, ...data }));
+    }, [allDistributions, transactions]);
 
     const dailyRevenue = transactions.reduce((acc, tx) => acc + tx.total_amount, 0);
 
@@ -220,7 +300,7 @@ export default function ManagerDashboard() {
                                             <div className="p-8 space-y-4">
                                                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}
                                             </div>
-                                        ) : inventory.length === 0 ? (
+                                        ) : aggregatedInventory.length === 0 ? (
                                             <div className="p-20 flex flex-col items-center justify-center opacity-40 text-center">
                                                 <Package className="h-12 w-12 mb-4" />
                                                 <p className="font-black uppercase italic text-sm">No stock distributed yet today</p>
@@ -235,23 +315,56 @@ export default function ManagerDashboard() {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-border/20">
-                                                    {inventory.map((item) => (
-                                                        <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
-                                                            <td className="px-8 py-6">
-                                                                <p className="font-black italic uppercase text-lg group-hover:text-primary transition-colors leading-none">{item.menu_items?.name}</p>
-                                                            </td>
-                                                            <td className="px-4 py-6 text-center">
-                                                                <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase px-3 py-0.5 opacity-60">
-                                                                    {item.menu_items?.category}
-                                                                </Badge>
-                                                            </td>
-                                                            <td className="px-8 py-6 text-right">
-                                                                <div className="inline-flex items-center gap-2">
-                                                                    <span className="text-2xl font-black italic tabular-nums">{item.quantity}</span>
-                                                                    <span className="text-[10px] font-black uppercase opacity-40">{item.unit}</span>
+                                                    {aggregatedInventory.map((item) => (
+                                                        <Dialog key={item.id}>
+                                                            <DialogTrigger asChild>
+                                                                <tr className="hover:bg-muted/30 transition-colors group cursor-pointer">
+                                                                    <td className="px-8 py-6">
+                                                                        <p className="font-black italic uppercase text-lg group-hover:text-primary transition-colors leading-none">{item.name}</p>
+                                                                    </td>
+                                                                    <td className="px-4 py-6 text-center">
+                                                                        <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase px-3 py-0.5 opacity-60">
+                                                                            {item.category}
+                                                                        </Badge>
+                                                                    </td>
+                                                                    <td className="px-8 py-6 text-right">
+                                                                        <div className="inline-flex items-center gap-2">
+                                                                            <span className={cn(
+                                                                                "text-2xl font-black italic tabular-nums",
+                                                                                item.remaining <= 0 ? "text-destructive" : ""
+                                                                            )}>{item.remaining}</span>
+                                                                            <span className="text-[10px] font-black uppercase opacity-40">{item.unit}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            </DialogTrigger>
+                                                            <DialogContent className="rounded-[2.5rem] p-8 max-w-md border-2 bg-card">
+                                                                <DialogHeader>
+                                                                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Distribution Logs</DialogTitle>
+                                                                    <DialogDescription className="font-bold text-xs uppercase tracking-widest opacity-60">{item.name}</DialogDescription>
+                                                                </DialogHeader>
+                                                                <div className="space-y-4 mt-6">
+                                                                    <div className="flex justify-between items-end p-4 bg-muted/30 rounded-2xl border-2 border-dashed">
+                                                                        <p className="text-[10px] font-black uppercase opacity-40">Total Received Today</p>
+                                                                        <p className="text-2xl font-black italic">{item.total} {item.unit}</p>
+                                                                    </div>
+                                                                    <div className="space-y-2">
+                                                                        <p className="text-[10px] font-black uppercase opacity-40 pl-1">History</p>
+                                                                        {item.distributions.map((dist) => (
+                                                                            <div key={dist.id} className="flex justify-between items-center p-4 rounded-xl bg-muted/40 border">
+                                                                                <div>
+                                                                                    <p className="font-black text-sm">+{dist.quantity} {dist.unit}</p>
+                                                                                    <p className="text-[9px] opacity-40 uppercase font-bold">
+                                                                                        {new Date(dist.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <Badge variant="outline" className="text-[8px] font-black">Logged</Badge>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
-                                                            </td>
-                                                        </tr>
+                                                            </DialogContent>
+                                                        </Dialog>
                                                     ))}
                                                 </tbody>
                                             </table>
@@ -292,8 +405,12 @@ export default function ManagerDashboard() {
                                             </div>
                                         ))
                                     )}
-                                    <Button variant="ghost" className="w-full h-12 rounded-2xl font-black uppercase italic text-xs opacity-40 hover:opacity-100 mt-2">
-                                        View All Activity
+                                    <Button
+                                        asChild
+                                        variant="ghost"
+                                        className="w-full h-12 rounded-2xl font-black uppercase italic text-xs opacity-40 hover:opacity-100 mt-2"
+                                    >
+                                        <a href="/manager/transactions">View All Activity</a>
                                     </Button>
                                 </div>
                             </div>
