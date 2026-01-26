@@ -7,6 +7,26 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
   TrendingUp,
   Users,
   CreditCard,
@@ -47,19 +67,37 @@ interface SoldItem {
   item_id: string;
 }
 
+interface MenuItem {
+  id: string;
+  name: string;
+  unit: string;
+  category: string;
+}
+
+interface DailyStockEntry {
+  item_id: string;
+  quantity: number;
+}
+
+interface TransactionItem {
+  item_id: string;
+  quantity: number;
+}
+
 export default function ExtremeDashboard() {
   const { user } = useSession();
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [distributedTotal, setDistributedTotal] = useState(0);
-  const [soldTotal, setSoldTotal] = useState(0);
+  const [distributedStocks, setDistributedStocks] = useState<DailyStockEntry[]>([]);
+  const [soldItemEntries, setSoldItemEntries] = useState<TransactionItem[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
 
   const fetchData = async () => {
     if (!user) return;
     try {
       const startOfToday = getStartOfTodayUTC();
 
-      const [txRes, stockRes, itemRes] = await Promise.all([
+      const [txRes, stockRes, itemRes, menuRes] = await Promise.all([
         supabase
           .from("transactions")
           .select("*, outlets(name)")
@@ -67,17 +105,21 @@ export default function ExtremeDashboard() {
           .order("created_at", { ascending: false }),
         supabase
           .from("daily_stocks")
-          .select("quantity")
+          .select("item_id, quantity")
           .gte("stock_date", format(new Date(), 'yyyy-MM-dd')),
         supabase
           .from("transaction_items")
-          .select("quantity, transactions!inner(created_at)")
-          .gte("transactions.created_at", startOfToday)
+          .select("item_id, quantity, transactions!inner(created_at)")
+          .gte("transactions.created_at", startOfToday),
+        supabase
+          .from("menu_items")
+          .select("id, name, unit, category")
       ]);
 
       setTransactions(txRes.data || []);
-      setDistributedTotal((stockRes.data || []).reduce((sum, s) => sum + Number(s.quantity), 0));
-      setSoldTotal((itemRes.data || []).reduce((sum, s) => sum + Number(s.quantity), 0));
+      setDistributedStocks(stockRes.data || []);
+      setSoldItemEntries(itemRes.data || []);
+      setMenuItems(menuRes.data || []);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
@@ -102,14 +144,33 @@ export default function ExtremeDashboard() {
 
   const metrics = useMemo(() => {
     const globalRevenue = transactions.reduce((sum, tx) => sum + Number(tx.total_amount), 0);
-    const upiTotal = transactions.filter(t => t.payment_method === 'UPI').reduce((sum, tx) => sum + Number(tx.total_amount), 0);
+    const upiTotal = transactions.filter(t => t.payment_method === 'UPI').reduce((sum, t) => sum + Number(t.total_amount), 0);
     const cashTotal = transactions.filter(t => t.payment_method === 'Cash').reduce((sum, tx) => sum + Number(tx.total_amount), 0);
+
+    const distributedTotal = distributedStocks.reduce((sum, s) => sum + Number(s.quantity), 0);
+    const soldTotal = soldItemEntries.reduce((sum, s) => sum + Number(s.quantity), 0);
 
     const outletPerformance: Record<string, number> = {};
     transactions.forEach(tx => {
       const name = tx.outlets?.name || "Unknown";
       outletPerformance[name] = (outletPerformance[name] || 0) + Number(tx.total_amount);
     });
+
+    const perItemStats = menuItems.map(item => {
+      const sent = distributedStocks
+        .filter(s => s.item_id === item.id)
+        .reduce((sum, s) => sum + Number(s.quantity), 0);
+      const sold = soldItemEntries
+        .filter(s => s.item_id === item.id)
+        .reduce((sum, s) => sum + Number(s.quantity), 0);
+
+      return {
+        ...item,
+        sent,
+        sold,
+        remaining: Math.max(0, sent - sold)
+      };
+    }).filter(item => item.sent > 0 || item.sold > 0);
 
     return {
       revenue: globalRevenue,
@@ -118,9 +179,11 @@ export default function ExtremeDashboard() {
       upiTotal,
       cashTotal,
       outletPerformance,
-      liveStock: Math.max(0, distributedTotal - soldTotal)
+      liveStock: Math.max(0, distributedTotal - soldTotal),
+      distributedTotal,
+      perItemStats
     };
-  }, [transactions, distributedTotal, soldTotal]);
+  }, [transactions, distributedStocks, soldItemEntries, menuItems]);
 
   const chartData = useMemo(() => {
     // Simple hourly breakdown for today
@@ -188,18 +251,67 @@ export default function ExtremeDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-[2.5rem] border-2 bg-card shadow-lg">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-40">Live Stock Items</CardDescription>
-                <CardTitle className="text-4xl font-black italic tracking-tighter tabular-nums">{metrics.liveStock}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 font-bold text-xs uppercase text-emerald-600">
-                  <Package className="h-3 w-3" />
-                  <span>{distributedTotal} Total Distributed</span>
-                </div>
-              </CardContent>
-            </Card>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Card className="rounded-[2.5rem] border-2 bg-card shadow-lg cursor-pointer hover:border-primary/40 transition-all hover:bg-muted/10 group">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-40 group-hover:text-primary transition-colors">Live Stock Items</CardDescription>
+                    <CardTitle className="text-4xl font-black italic tracking-tighter tabular-nums">{metrics.liveStock}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2 font-bold text-xs uppercase text-emerald-600">
+                      <Package className="h-3 w-3" />
+                      <span>{metrics.distributedTotal} Total Distributed</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </DialogTrigger>
+              <DialogContent className="rounded-[3rem] border-2 max-w-2xl p-0">
+                <DialogHeader className="p-8 border-b">
+                  <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Inventory Breakdown</DialogTitle>
+                  <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">On-ground status across all branches</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh]">
+                  <div className="p-8 space-y-4">
+                    {metrics.perItemStats.map(item => (
+                      <div key={item.id} className="p-4 rounded-3xl bg-muted/40 border-2 border-transparent hover:border-border transition-all flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                            <Package className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase leading-none mb-1">{item.name}</p>
+                            <Badge variant="outline" className="text-[8px] font-black italic opacity-40">{item.category}</Badge>
+                          </div>
+                        </div>
+                        <div className="flex gap-8 items-center text-right">
+                          <div>
+                            <p className="text-[9px] font-black uppercase opacity-40">Sent</p>
+                            <p className="font-bold text-xs">{item.sent} {item.unit}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-black uppercase opacity-40">Sold</p>
+                            <p className="font-bold text-xs text-emerald-600">{item.sold} {item.unit}</p>
+                          </div>
+                          <div className="min-w-[80px]">
+                            <p className="text-[9px] font-black uppercase opacity-40">Live</p>
+                            <Badge variant="outline" className="h-8 min-w-[50px] font-black italic text-base border-primary/20 bg-primary/5">
+                              {item.remaining}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {metrics.perItemStats.length === 0 && (
+                      <div className="py-20 text-center opacity-40 grayscale flex flex-col items-center">
+                        <AlertTriangle className="h-12 w-12 mb-4" />
+                        <p className="text-sm font-black uppercase tracking-widest">No stock entries found for today</p>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </DialogContent>
+            </Dialog>
 
             <Card className="rounded-[2.5rem] border-2 bg-card shadow-lg">
               <CardHeader className="pb-2">
