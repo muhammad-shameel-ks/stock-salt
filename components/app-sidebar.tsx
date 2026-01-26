@@ -24,6 +24,9 @@ import { NavDocuments } from "@/components/nav-documents";
 import { NavMain } from "@/components/nav-main";
 import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
+import { useState, useEffect } from "react";
+import { useSession } from "@/contexts/session-context";
+import { supabase } from "@/lib/supabase";
 import {
   Sidebar,
   SidebarContent,
@@ -147,6 +150,62 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { user } = useSession();
+  const [role, setRole] = useState<string | null>(null);
+  const [orgName, setOrgName] = useState("SALT HUB");
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, org_id, organizations(name)")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        setRole(profile.role);
+        // @ts-ignore
+        if (profile.organizations?.name) {
+          // @ts-ignore
+          setOrgName(profile.organizations.name);
+        }
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  const navItems = React.useMemo(() => {
+    if (!role) return [];
+
+    const baseNav = [
+      {
+        title: "Dashboard",
+        url: role === "admin" ? "/dashboard" : (role === "outlet_manager" ? "/manager" : "/staff"),
+        icon: IconDashboard,
+      }
+    ];
+
+    if (role === "admin") {
+      return [
+        ...baseNav,
+        { title: "Outlets", url: "/outlets", icon: IconListDetails },
+        { title: "Menu", url: "/menu", icon: IconMenu2 },
+        { title: "Stock Management", url: "/stocks", icon: IconDatabase },
+        { title: "Users", url: "/users", icon: IconUsers },
+      ];
+    }
+
+    if (role === "outlet_manager") {
+      return [
+        ...baseNav,
+        { title: "Stock Control", url: "/stocks", icon: IconDatabase },
+      ];
+    }
+
+    return baseNav; // Staff only get Dashboard/Placeholder
+  }, [role]);
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -158,15 +217,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <a href="#">
                 <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Acme Inc.</span>
+                <span className="text-base font-black italic tracking-tighter uppercase">{orgName}</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
+        <NavMain items={navItems} />
+        {role === "admin" && <NavDocuments items={data.documents} />}
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>

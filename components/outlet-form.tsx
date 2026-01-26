@@ -11,23 +11,55 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/contexts/session-context";
+
+interface Outlet {
+  id: string;
+  name: string;
+  location: string;
+  table_count: number;
+}
 
 interface OutletFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  itemToEdit?: Outlet | null;
 }
 
-export function OutletForm({ isOpen, onClose, onSuccess }: OutletFormProps) {
-  const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
-  const [tableCount, setTableCount] = useState("");
+export function OutletForm({ isOpen, onClose, onSuccess, itemToEdit }: OutletFormProps) {
+  const [formData, setFormData] = useState({
+    name: "",
+    location: "",
+    tableCount: "10",
+  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { user } = useSession();
+
+  // Populate form when editing
+  useEffect(() => {
+    if (itemToEdit) {
+      setFormData({
+        name: itemToEdit.name || "",
+        location: itemToEdit.location || "",
+        tableCount: itemToEdit.table_count?.toString() || "10",
+      });
+    } else {
+      setFormData({
+        name: "",
+        location: "",
+        tableCount: "10",
+      });
+    }
+  }, [itemToEdit, isOpen]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +73,6 @@ export function OutletForm({ isOpen, onClose, onSuccess }: OutletFormProps) {
     }
 
     try {
-      // Get user's profile to get org_id
       const { data: profileData } = await supabase
         .from("profiles")
         .select("org_id")
@@ -49,27 +80,29 @@ export function OutletForm({ isOpen, onClose, onSuccess }: OutletFormProps) {
         .single();
 
       if (!profileData?.org_id) {
-        setError("Organization not found for user");
-        setLoading(false);
-        return;
+        throw new Error("Organization not found");
       }
 
-      const { error } = await supabase.from("outlets").insert([
-        {
-          name,
-          location: location || null,
-          table_count: parseInt(tableCount) || 10,
-          org_id: profileData.org_id,
-        },
-      ]);
+      const outletData = {
+        name: formData.name,
+        location: formData.location || null,
+        table_count: parseInt(formData.tableCount) || 10,
+        org_id: profileData.org_id,
+      };
 
-      if (error) {
-        throw error;
+      if (itemToEdit) {
+        const { error } = await supabase
+          .from("outlets")
+          .update(outletData)
+          .eq("id", itemToEdit.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("outlets")
+          .insert([outletData]);
+        if (error) throw error;
       }
 
-      setName("");
-      setLocation("");
-      setTableCount("10");
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -81,66 +114,78 @@ export function OutletForm({ isOpen, onClose, onSuccess }: OutletFormProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-[2rem]">
         <DialogHeader>
-          <DialogTitle>Create New Outlet</DialogTitle>
-          <DialogDescription>
-            Add a new outlet to your organization
+          <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">
+            {itemToEdit ? "Edit Outlet" : "Register Outlet"}
+          </DialogTitle>
+          <DialogDescription className="font-medium">
+            {itemToEdit ? "Update your branch details." : "Add a new branch to your organization."}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} id="outlet-form">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md text-sm">
+            <div className="p-4 bg-destructive/10 text-destructive rounded-2xl text-xs font-bold border border-destructive/20 uppercase tracking-wider">
               {error}
             </div>
           )}
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="col-span-3"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="location" className="text-right">
-                Location
-              </Label>
+
+          <div className="space-y-2">
+            <Label htmlFor="name" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Branch Name *</Label>
+            <Input
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="e.g. Salt Gourmet Downtown"
+              className="h-12 rounded-2xl bg-muted/30 border-none shadow-inner"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="location" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Location</Label>
               <Input
                 id="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="col-span-3"
+                name="location"
+                value={formData.location}
+                onChange={handleChange}
+                placeholder="City / Area"
+                className="h-12 rounded-2xl bg-muted/30 border-none shadow-inner"
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="tableCount" className="text-right">
-                Table Count
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="tableCount" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Table Capacity</Label>
               <Input
                 id="tableCount"
+                name="tableCount"
                 type="number"
                 min="1"
-                value={tableCount}
-                onChange={(e) => setTableCount(e.target.value)}
-                className="col-span-3"
-                defaultValue="10"
+                value={formData.tableCount}
+                onChange={handleChange}
+                className="h-12 rounded-2xl bg-muted/30 border-none shadow-inner font-bold"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
+
+          <div className="flex justify-end space-x-3 pt-6">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              className="rounded-xl h-12 px-6 font-bold hover:bg-muted/50 transition-colors"
+            >
+              CANCEL
             </Button>
-            <Button type="submit" form="outlet-form" disabled={loading}>
-              {loading ? "Creating..." : "Create Outlet"}
+            <Button
+              type="submit"
+              disabled={loading}
+              className="rounded-full h-12 px-8 font-black tracking-tight bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 active:scale-95 transition-all"
+            >
+              {loading ? "SAVING..." : (itemToEdit ? "UPDATE BRANCH" : "ACTIVATE OUTLET")}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
