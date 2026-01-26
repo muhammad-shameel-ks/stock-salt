@@ -7,7 +7,6 @@ import {
   IconNotification,
   IconUserCircle,
 } from "@tabler/icons-react";
-import { useRouter } from "next/navigation";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -31,12 +30,10 @@ import { supabase } from "@/lib/supabase";
 export function NavUser() {
   const { user } = useSession();
   const { isMobile } = useSidebar();
-  const router = useRouter();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    window.location.href = "/login";
   };
 
   // Get user's full name from user metadata or use email as fallback
