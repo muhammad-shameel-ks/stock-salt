@@ -23,7 +23,9 @@ import {
     X,
     UtensilsCrossed,
     Zap,
-    AlertTriangle
+    AlertTriangle,
+    Loader2,
+    CheckCircle2
 } from "lucide-react";
 import { cn, getLocalTodayString, getStartOfTodayUTC } from "@/lib/utils";
 import { toast } from "sonner";
@@ -73,6 +75,8 @@ export default function POSPage() {
     const [isStockWarningOpen, setIsStockWarningOpen] = useState(false);
     const [pendingItem, setPendingItem] = useState<MenuItem | null>(null);
     const [isLocked, setIsLocked] = useState(false);
+    const [isSettling, setIsSettling] = useState(false);
+    const [settlementSuccess, setSettlementSuccess] = useState(false);
     const { user } = useSession();
 
     const todayLocal = getLocalTodayString();
@@ -246,8 +250,8 @@ export default function POSPage() {
     const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
     const handleSettle = async (method: string) => {
-        if (cart.length === 0) return;
-        setLoading(true);
+        if (cart.length === 0 || isSettling) return;
+        setIsSettling(true);
         try {
             const { data: profile } = await supabase
                 .from("profiles")
@@ -287,15 +291,22 @@ export default function POSPage() {
 
             if (itemsError) throw itemsError;
 
-            toast.success("Transaction Settle Successful!");
-            setCart([]);
-            setIsReviewOpen(false);
-            setIsSettleOpen(false);
-            fetchInventory(); // Immediate stock refresh
+            setSettlementSuccess(true);
+
+            // Auto close after success
+            setTimeout(() => {
+                setCart([]);
+                setIsReviewOpen(false);
+                setIsSettleOpen(false);
+                setSettlementSuccess(false);
+                setIsSettling(false);
+                fetchInventory(); // Immediate stock refresh
+                toast.success("Transaction Settle Successful!");
+            }, 2000);
+
         } catch (err: any) {
             toast.error(err.message || "Settle failed");
-        } finally {
-            setLoading(false);
+            setIsSettling(false);
         }
     };
 
@@ -486,26 +497,53 @@ export default function POSPage() {
                                             <SheetDescription className="text-6xl font-black italic tracking-tighter text-foreground block">₹{cartTotal}</SheetDescription>
                                         </SheetHeader>
 
-                                        <div className="grid grid-cols-3 gap-6">
-                                            {[
-                                                { id: 'cash', label: 'Cash', icon: Banknote, color: 'bg-emerald-500' },
-                                                { id: 'card', label: 'Card', icon: CreditCard, color: 'bg-indigo-500' },
-                                                { id: 'upi', label: 'UPI / Scan', icon: QrCode, color: 'bg-primary' }
-                                            ].map(method => (
-                                                <button
-                                                    key={method.id}
-                                                    onClick={() => handleSettle(method.id)}
-                                                    className="group flex flex-col items-center gap-4 transition-all"
-                                                >
-                                                    <div className={cn(
-                                                        "h-24 w-24 md:h-32 md:w-32 rounded-[2.5rem] flex items-center justify-center text-white transition-all group-hover:scale-110 active:scale-90 shadow-2xl",
-                                                        method.color
-                                                    )}>
-                                                        <method.icon className="h-10 w-10 md:h-12 md:w-12" />
+                                        <div className="relative min-h-[250px] flex items-center justify-center">
+                                            {/* Loading State Overlay */}
+                                            {isSettling && !settlementSuccess && (
+                                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/50 backdrop-blur-sm animate-in fade-in duration-300">
+                                                    <div className="h-20 w-20 rounded-[2rem] bg-primary/10 flex items-center justify-center text-primary mb-4">
+                                                        <Loader2 className="h-10 w-10 animate-spin" />
                                                     </div>
-                                                    <span className="font-black italic uppercase tracking-widest text-xs opacity-60 group-hover:opacity-100">{method.label}</span>
-                                                </button>
-                                            ))}
+                                                    <p className="font-black italic uppercase tracking-widest text-xs opacity-60">Processing Payment...</p>
+                                                </div>
+                                            )}
+
+                                            {/* Success State Overlay */}
+                                            {settlementSuccess && (
+                                                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-card animate-in fade-in zoom-in duration-300">
+                                                    <div className="h-32 w-32 rounded-[3rem] bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-6 animate-in zoom-in duration-500 delay-150 fill-mode-both">
+                                                        <CheckCircle2 className="h-16 w-16" />
+                                                    </div>
+                                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Payment Complete</h3>
+                                                    <p className="font-black italic uppercase tracking-widest text-xs text-emerald-600">Transaction Settled Successfully</p>
+                                                </div>
+                                            )}
+
+                                            <div className={cn(
+                                                "grid grid-cols-3 gap-6 transition-all duration-300",
+                                                (isSettling || settlementSuccess) ? "opacity-20 pointer-events-none scale-95 blur-sm" : "opacity-100"
+                                            )}>
+                                                {[
+                                                    { id: 'cash', label: 'Cash', icon: Banknote, color: 'bg-emerald-500' },
+                                                    { id: 'card', label: 'Card', icon: CreditCard, color: 'bg-indigo-500' },
+                                                    { id: 'upi', label: 'UPI / Scan', icon: QrCode, color: 'bg-primary' }
+                                                ].map(method => (
+                                                    <button
+                                                        key={method.id}
+                                                        onClick={() => handleSettle(method.id)}
+                                                        disabled={isSettling || settlementSuccess}
+                                                        className="group flex flex-col items-center gap-4 transition-all"
+                                                    >
+                                                        <div className={cn(
+                                                            "h-24 w-24 md:h-32 md:w-32 rounded-[2.5rem] flex items-center justify-center text-white transition-all group-hover:scale-110 active:scale-90 shadow-2xl",
+                                                            method.color
+                                                        )}>
+                                                            <method.icon className="h-10 w-10 md:h-12 md:w-12" />
+                                                        </div>
+                                                        <span className="font-black italic uppercase tracking-widest text-xs opacity-60 group-hover:opacity-100">{method.label}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </SheetContent>

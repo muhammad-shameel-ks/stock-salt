@@ -118,7 +118,7 @@ export default function ManagerDashboard() {
             // Fetch Recent Transactions
             let query = supabase
                 .from("transactions")
-                .select("*, transaction_items(*)")
+                .select("*, transaction_items(*, menu_items(name))")
                 .eq("org_id", profile.org_id)
                 .eq("outlet_id", profile.outlet_id)
                 .order("created_at", { ascending: false });
@@ -386,23 +386,82 @@ export default function ManagerDashboard() {
                                         <div className="p-12 text-center opacity-30 italic font-black uppercase text-xs">No records</div>
                                     ) : (
                                         transactions.map((tx) => (
-                                            <div key={tx.id} className="flex items-center justify-between p-4 rounded-2xl bg-muted/40 hover:bg-muted/80 transition-all border border-transparent hover:border-border cursor-pointer">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                                        <TrendingUp className="h-5 w-5" />
+                                            <Dialog key={tx.id}>
+                                                <DialogTrigger asChild>
+                                                    <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/40 hover:bg-muted/80 transition-all border border-transparent hover:border-border cursor-pointer group">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                                                                <TrendingUp className="h-5 w-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-black italic uppercase text-sm leading-none mb-1 group-hover:text-primary transition-colors">₹{tx.total_amount}</p>
+                                                                <p className="text-[9px] font-black uppercase opacity-40">{tx.payment_method}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="text-right">
+                                                                <p className="text-[10px] font-black uppercase opacity-40 mb-1">{formatTxDate(tx.created_at)}</p>
+                                                                <p className="text-[10px] font-bold opacity-60">
+                                                                    {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                                </p>
+                                                            </div>
+                                                            <ChevronRight className="h-4 w-4 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="font-black italic uppercase text-sm leading-none mb-1">₹{tx.total_amount}</p>
-                                                        <p className="text-[9px] font-black uppercase opacity-40">{tx.payment_method}</p>
+                                                </DialogTrigger>
+                                                <DialogContent className="rounded-[2.5rem] p-8 max-w-md border-2 bg-card">
+                                                    <DialogHeader>
+                                                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Transaction Bill</DialogTitle>
+                                                        <div className="flex justify-between items-center mt-2">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40">#{tx.id.slice(0, 8).toUpperCase()}</p>
+                                                            <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase px-3 py-0.5 opacity-60">
+                                                                {tx.payment_method}
+                                                            </Badge>
+                                                        </div>
+                                                    </DialogHeader>
+
+                                                    <div className="mt-6 space-y-4">
+                                                        <div className="space-y-2">
+                                                            <p className="text-[10px] font-black uppercase opacity-40 pl-1">Items Sold</p>
+                                                            <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+                                                                {/* @ts-ignore */}
+                                                                {tx.transaction_items?.map((item: any) => (
+                                                                    <div key={item.id} className="flex justify-between items-center p-4 rounded-xl bg-muted/40 border">
+                                                                        <div className="min-w-0 flex-1">
+                                                                            <p className="font-black text-sm uppercase italic truncate">{item.menu_items?.name}</p>
+                                                                            <p className="text-[9px] opacity-40 uppercase font-bold">
+                                                                                {item.quantity} x ₹{item.unit_price}
+                                                                            </p>
+                                                                        </div>
+                                                                        <p className="font-black italic text-sm ml-4">₹{item.subtotal}</p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="pt-4 border-t-2 border-dashed border-border/50">
+                                                            <div className="flex justify-between items-end">
+                                                                <div>
+                                                                    <p className="text-[10px] font-black uppercase opacity-40">Grand Total</p>
+                                                                    <p className="text-[8px] font-bold opacity-40 uppercase leading-none">Inclusive of all taxes</p>
+                                                                </div>
+                                                                <p className="text-4xl font-black italic tracking-tighter">₹{tx.total_amount}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex gap-3 mt-4">
+                                                            <div className="flex-1 p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                                                                <p className="text-[10px] font-black uppercase opacity-40 mb-1">Date</p>
+                                                                <p className="text-xs font-bold">{new Date(tx.created_at).toLocaleDateString()}</p>
+                                                            </div>
+                                                            <div className="flex-1 p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                                                                <p className="text-[10px] font-black uppercase opacity-40 mb-1">Time</p>
+                                                                <p className="text-xs font-bold">{new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-black uppercase opacity-40 mb-1">{formatTxDate(tx.created_at)}</p>
-                                                    <p className="text-[10px] font-bold opacity-60">
-                                                        {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                                                    </p>
-                                                </div>
-                                            </div>
+                                                </DialogContent>
+                                            </Dialog>
                                         ))
                                     )}
                                     <Button
