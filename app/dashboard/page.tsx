@@ -358,84 +358,6 @@ export default function ExtremeDashboard() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Live Revenue Chart */}
-            <Card className="lg:col-span-2 rounded-[3rem] border-2 bg-card shadow-xl overflow-hidden p-2">
-              <div className="p-6">
-                <h3 className="text-lg font-black italic uppercase tracking-tighter mb-1">Revenue Momentum</h3>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Hourly transaction flow for today</p>
-              </div>
-              <div className="h-[300px] w-full px-4 pb-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground) / 0.1)" />
-                    <XAxis
-                      dataKey="time"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fontSize: 10, fontWeight: 700 }}
-                      tickMargin={10}
-                    />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 800 }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="amount"
-                      stroke="var(--primary)"
-                      strokeWidth={4}
-                      fillOpacity={1}
-                      fill="url(#colorAmount)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            {/* Outlet Performance */}
-            <Card className="rounded-[3rem] border-2 bg-card shadow-xl flex flex-col">
-              <div className="p-8 pb-4">
-                <h3 className="text-lg font-black italic uppercase tracking-tighter">Outlet Rankings</h3>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sales performance by branch</p>
-              </div>
-              <CardContent className="flex-1 space-y-4 px-8 pb-8">
-                {Object.entries(metrics.outletPerformance)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([name, amount], i) => (
-                    <div key={name} className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 border border-transparent hover:border-border transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center font-black italic text-primary">
-                          #{i + 1}
-                        </div>
-                        <div>
-                          <p className="font-black text-sm uppercase leading-none mb-1">{name}</p>
-                          <div className="h-1.5 w-32 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-primary" style={{ width: `${(amount / metrics.revenue) * 100}%` }} />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-black italic text-sm">₹{amount.toLocaleString()}</p>
-                        <p className="text-[9px] font-bold opacity-40 uppercase">{((amount / metrics.revenue) * 100).toFixed(0)}% SHARE</p>
-                      </div>
-                    </div>
-                  ))}
-                {transactions.length === 0 && (
-                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-center opacity-40 grayscale">
-                    <Store className="h-12 w-12 mb-4" />
-                    <p className="text-xs font-black uppercase tracking-widest">No branch activity recorded today</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Recent Feed */}
           <Card className="rounded-[3rem] border-2 bg-card shadow-xl overflow-hidden">
             <div className="p-8 border-b flex items-center justify-between">
@@ -537,6 +459,84 @@ export default function ExtremeDashboard() {
               )}
             </div>
           </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Live Revenue Chart */}
+            <Card className="lg:col-span-2 rounded-[3rem] border-2 bg-card shadow-xl overflow-hidden p-2">
+              <div className="p-6">
+                <h3 className="text-lg font-black italic uppercase tracking-tighter mb-1">Revenue Momentum</h3>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Hourly transaction flow for today</p>
+              </div>
+              <div className="h-[300px] w-full px-4 pb-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground) / 0.1)" />
+                    <XAxis
+                      dataKey="time"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 10, fontWeight: 700 }}
+                      tickMargin={10}
+                    />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 800 }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="amount"
+                      stroke="var(--primary)"
+                      strokeWidth={4}
+                      fillOpacity={1}
+                      fill="url(#colorAmount)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            {/* Outlet Performance */}
+            <Card className="rounded-[3rem] border-2 bg-card shadow-xl flex flex-col">
+              <div className="p-8 pb-4">
+                <h3 className="text-lg font-black italic uppercase tracking-tighter">Outlet Rankings</h3>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sales performance by branch</p>
+              </div>
+              <CardContent className="flex-1 space-y-4 px-8 pb-8">
+                {Object.entries(metrics.outletPerformance)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([name, amount], i) => (
+                    <div key={name} className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 border border-transparent hover:border-border transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center font-black italic text-primary">
+                          #{i + 1}
+                        </div>
+                        <div>
+                          <p className="font-black text-sm uppercase leading-none mb-1">{name}</p>
+                          <div className="h-1.5 w-32 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-primary" style={{ width: `${(amount / metrics.revenue) * 100}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black italic text-sm">₹{amount.toLocaleString()}</p>
+                        <p className="text-[9px] font-bold opacity-40 uppercase">{((amount / metrics.revenue) * 100).toFixed(0)}% SHARE</p>
+                      </div>
+                    </div>
+                  ))}
+                {transactions.length === 0 && (
+                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-center opacity-40 grayscale">
+                    <Store className="h-12 w-12 mb-4" />
+                    <p className="text-xs font-black uppercase tracking-widest">No branch activity recorded today</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
         </div>
       </SidebarInset>
