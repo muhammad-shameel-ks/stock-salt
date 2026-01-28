@@ -39,7 +39,12 @@ interface MenuFormProps {
   itemToEdit?: MenuItem | null;
 }
 
-export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormProps) {
+export function MenuForm({
+  isOpen,
+  onClose,
+  onSuccess,
+  itemToEdit,
+}: MenuFormProps) {
   const [formData, setFormData] = useState({
     name: "",
     name_local: "",
@@ -108,7 +113,10 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
   const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "is_market_priced" || name === "requires_daily_stock" ? value === "true" : value,
+      [name]:
+        name === "is_market_priced" || name === "requires_daily_stock"
+          ? value === "true"
+          : value,
     }));
   };
 
@@ -181,7 +189,9 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
             {itemToEdit ? "Edit Menu Item" : "Add Menu Item"}
           </DialogTitle>
           <DialogDescription className="font-medium">
-            {itemToEdit ? "Update details for this signature dish." : "Fill in the details for the new menu item."}
+            {itemToEdit
+              ? "Update details for this signature dish."
+              : "Fill in the details for the new menu item."}
           </DialogDescription>
         </DialogHeader>
 
@@ -193,7 +203,12 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Name *</Label>
+            <Label
+              htmlFor="name"
+              className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1"
+            >
+              Name *
+            </Label>
             <Input
               id="name"
               name="name"
@@ -207,7 +222,12 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name_local" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Local Name</Label>
+              <Label
+                htmlFor="name_local"
+                className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1"
+              >
+                Local Name
+              </Label>
               <Input
                 id="name_local"
                 name="name_local"
@@ -219,7 +239,12 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="base_price" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Base Price *</Label>
+              <Label
+                htmlFor="base_price"
+                className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1"
+              >
+                Base Price *
+              </Label>
               <Input
                 id="base_price"
                 name="base_price"
@@ -237,7 +262,12 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Category</Label>
+              <Label
+                htmlFor="category"
+                className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1"
+              >
+                Category
+              </Label>
               <Select
                 value={formData.category}
                 onValueChange={(value) => handleSelectChange("category", value)}
@@ -250,13 +280,26 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
                   <SelectItem value="crab">Crab</SelectItem>
                   <SelectItem value="prawn">Prawn</SelectItem>
                   <SelectItem value="shellfish">Shellfish</SelectItem>
+                  <SelectItem value="curry">Curry</SelectItem>
+                  <SelectItem value="rice">Rice</SelectItem>
+                  <SelectItem value="bread">Bread</SelectItem>
+                  <SelectItem value="vegetable">Vegetable</SelectItem>
+                  <SelectItem value="soup">Soup</SelectItem>
+                  <SelectItem value="salad">Salad</SelectItem>
+                  <SelectItem value="dessert">Dessert</SelectItem>
+                  <SelectItem value="beverage">Beverage</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="unit" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Unit</Label>
+              <Label
+                htmlFor="unit"
+                className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1"
+              >
+                Unit
+              </Label>
               <Select
                 value={formData.unit}
                 onValueChange={(value) => handleSelectChange("unit", value)}
@@ -280,11 +323,19 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
                 name="is_market_priced"
                 checked={formData.is_market_priced}
                 onCheckedChange={(checked) =>
-                  handleSelectChange("is_market_priced", checked ? "true" : "false")
+                  handleSelectChange(
+                    "is_market_priced",
+                    checked ? "true" : "false",
+                  )
                 }
                 className="h-5 w-5 rounded-lg border-2 border-primary/20 data-[state=checked]:bg-primary"
               />
-              <Label htmlFor="is_market_priced" className="text-[10px] font-black uppercase tracking-widest leading-none cursor-pointer">Market Priced</Label>
+              <Label
+                htmlFor="is_market_priced"
+                className="text-[10px] font-black uppercase tracking-widest leading-none cursor-pointer"
+              >
+                Market Priced
+              </Label>
             </div>
 
             <div className="flex items-center space-x-3">
@@ -293,16 +344,29 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
                 name="requires_daily_stock"
                 checked={formData.requires_daily_stock}
                 onCheckedChange={(checked) =>
-                  handleSelectChange("requires_daily_stock", checked ? "true" : "false")
+                  handleSelectChange(
+                    "requires_daily_stock",
+                    checked ? "true" : "false",
+                  )
                 }
                 className="h-5 w-5 rounded-lg border-2 border-primary/20 data-[state=checked]:bg-primary"
               />
-              <Label htmlFor="requires_daily_stock" className="text-[10px] font-black uppercase tracking-widest leading-none cursor-pointer">Track Stock</Label>
+              <Label
+                htmlFor="requires_daily_stock"
+                className="text-[10px] font-black uppercase tracking-widest leading-none cursor-pointer"
+              >
+                Track Stock
+              </Label>
             </div>
           </div>
 
           <div className="space-y-2 pt-2">
-            <Label htmlFor="image_url" className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1">Image URL</Label>
+            <Label
+              htmlFor="image_url"
+              className="text-[10px] font-black uppercase opacity-60 tracking-widest pl-1"
+            >
+              Image URL
+            </Label>
             <Input
               id="image_url"
               name="image_url"
@@ -327,7 +391,11 @@ export function MenuForm({ isOpen, onClose, onSuccess, itemToEdit }: MenuFormPro
               disabled={loading}
               className="rounded-full h-12 px-8 font-black tracking-tight bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 active:scale-95 transition-all"
             >
-              {loading ? "SAVING..." : (itemToEdit ? "UPDATE ITEM" : "ADD TO MENU")}
+              {loading
+                ? "SAVING..."
+                : itemToEdit
+                  ? "UPDATE ITEM"
+                  : "ADD TO MENU"}
             </Button>
           </div>
         </form>
