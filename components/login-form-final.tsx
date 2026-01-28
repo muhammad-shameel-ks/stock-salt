@@ -133,7 +133,7 @@ export function LoginForm({
               disabled={loading}
               className="w-full h-12 rounded-full font-black tracking-tight shadow-lg shadow-primary/20 active:scale-[0.98] transition-all uppercase text-[11px]"
             >
-              {loading ? "AUTHENTICATING..." : "BREACH HUB"}
+              {loading ? "AUTHENTICATING..." : "Login"}
             </Button>
 
             <div className="relative py-2">
