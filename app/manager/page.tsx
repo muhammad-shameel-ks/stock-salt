@@ -235,7 +235,7 @@ export default function ManagerDashboard() {
                         </div>
 
                         {/* Summary Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-2xl relative overflow-hidden group">
                                 <div className="relative z-10 space-y-4">
                                     <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Live Sales</p>
@@ -253,20 +253,6 @@ export default function ManagerDashboard() {
                                 <ShoppingCart className="absolute -right-8 -top-8 h-48 w-48 text-white/5 -rotate-12 transition-transform group-hover:rotate-0 duration-500" />
                             </div>
 
-                            <div className="bg-card border-2 border-border p-8 rounded-[2.5rem] flex flex-col justify-between hover:border-primary/20 transition-all">
-                                <div className="flex justify-between items-start">
-                                    <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                                        <Package className="h-7 w-7" />
-                                    </div>
-                                    <Badge className="rounded-full bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20 px-4 py-1">
-                                        Active
-                                    </Badge>
-                                </div>
-                                <div className="mt-8">
-                                    <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-1">In Stock</p>
-                                    <p className="text-4xl font-black italic leading-none">{inventory.length} Items</p>
-                                </div>
-                            </div>
 
                             <div className="bg-card border-2 border-border p-8 rounded-[2.5rem] flex flex-col justify-between hover:border-primary/20 transition-all">
                                 <div className="flex justify-between items-start">
