@@ -30,6 +30,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { ChevronRight } from "lucide-react";
 
 interface Transaction {
     id: string;
@@ -70,7 +78,7 @@ export default function TransactionsPage() {
 
             let query = supabase
                 .from("transactions")
-                .select("*")
+                .select("*, transaction_items(*, menu_items(name))")
                 .eq("org_id", profile.org_id)
                 .order(sortField, { ascending: sortOrder === "asc" });
 
@@ -238,31 +246,88 @@ export default function TransactionsPage() {
                                             filteredTransactions.map((tx) => {
                                                 const Icon = getMethodIcon(tx.payment_method);
                                                 return (
-                                                    <tr key={tx.id} className="hover:bg-muted/30 transition-colors group cursor-pointer">
-                                                        <td className="px-8 py-6">
-                                                            <p className="text-[10px] font-mono font-bold opacity-40">#{tx.id.slice(0, 8).toUpperCase()}</p>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <div className="space-y-1">
-                                                                <p className="font-black italic uppercase text-sm leading-none">{formatTxDate(tx.created_at)}</p>
-                                                                <p className="text-[10px] font-bold opacity-40">
-                                                                    {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                                                                </p>
+                                                    <Dialog key={tx.id}>
+                                                        <DialogTrigger asChild>
+                                                            <tr className="hover:bg-muted/30 transition-colors group cursor-pointer">
+                                                                <td className="px-8 py-6">
+                                                                    <p className="text-[10px] font-mono font-bold opacity-40 group-hover:text-primary transition-colors">#{tx.id.slice(0, 8).toUpperCase()}</p>
+                                                                </td>
+                                                                <td className="px-8 py-6">
+                                                                    <div className="space-y-1">
+                                                                        <p className="font-black italic uppercase text-sm leading-none group-hover:text-primary transition-colors">{formatTxDate(tx.created_at)}</p>
+                                                                        <p className="text-[10px] font-bold opacity-40">
+                                                                            {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                                        </p>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-8 py-6 text-center">
+                                                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-muted/50 border border-border/50 group-hover:bg-primary/10 group-hover:border-primary/20 transition-colors">
+                                                                        <Icon className="h-3 w-3 opacity-60 group-hover:text-primary group-hover:opacity-100" />
+                                                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60 group-hover:text-primary group-hover:opacity-100">{tx.payment_method}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-8 py-6 text-right">
+                                                                    <div className="inline-flex items-center gap-3">
+                                                                        <p className="text-2xl font-black italic tracking-tighter tabular-nums group-hover:text-primary transition-colors">₹{tx.total_amount.toLocaleString()}</p>
+                                                                        <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-0.5 rounded-full text-[9px] font-black uppercase">Settled</Badge>
+                                                                        <ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-40 group-hover:translate-x-1 transition-all" />
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        </DialogTrigger>
+                                                        <DialogContent className="rounded-[2.5rem] p-8 max-w-md border-2 bg-card">
+                                                            <DialogHeader>
+                                                                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Transaction Bill</DialogTitle>
+                                                                <div className="flex justify-between items-center mt-2">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40">#{tx.id.slice(0, 8).toUpperCase()}</p>
+                                                                    <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase px-3 py-0.5 opacity-60">
+                                                                        {tx.payment_method}
+                                                                    </Badge>
+                                                                </div>
+                                                            </DialogHeader>
+
+                                                            <div className="mt-6 space-y-4">
+                                                                <div className="space-y-2">
+                                                                    <p className="text-[10px] font-black uppercase opacity-40 pl-1">Items Sold</p>
+                                                                    <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+                                                                        {/* @ts-ignore */}
+                                                                        {tx.transaction_items?.map((item: any) => (
+                                                                            <div key={item.id} className="flex justify-between items-center p-4 rounded-xl bg-muted/40 border">
+                                                                                <div className="min-w-0 flex-1">
+                                                                                    <p className="font-black text-sm uppercase italic truncate">{item.menu_items?.name}</p>
+                                                                                    <p className="text-[9px] opacity-40 uppercase font-bold">
+                                                                                        {item.quantity} x ₹{item.unit_price}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <p className="font-black italic text-sm ml-4">₹{item.subtotal}</p>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="pt-4 border-t-2 border-dashed border-border/50">
+                                                                    <div className="flex justify-between items-end">
+                                                                        <div>
+                                                                            <p className="text-[10px] font-black uppercase opacity-40">Grand Total</p>
+                                                                            <p className="text-[8px] font-bold opacity-40 uppercase leading-none">Inclusive of all taxes</p>
+                                                                        </div>
+                                                                        <p className="text-4xl font-black italic tracking-tighter">₹{tx.total_amount.toLocaleString()}</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex gap-3 mt-4">
+                                                                    <div className="flex-1 p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                                                                        <p className="text-[10px] font-black uppercase opacity-40 mb-1">Date</p>
+                                                                        <p className="text-xs font-bold">{new Date(tx.created_at).toLocaleDateString()}</p>
+                                                                    </div>
+                                                                    <div className="flex-1 p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                                                                        <p className="text-[10px] font-black uppercase opacity-40 mb-1">Time</p>
+                                                                        <p className="text-xs font-bold">{new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                        </td>
-                                                        <td className="px-8 py-6 text-center">
-                                                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-muted/50 border border-border/50">
-                                                                <Icon className="h-3 w-3 opacity-60" />
-                                                                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{tx.payment_method}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-8 py-6 text-right">
-                                                            <div className="inline-flex items-center gap-3">
-                                                                <p className="text-2xl font-black italic tracking-tighter tabular-nums group-hover:text-primary transition-colors">₹{tx.total_amount.toLocaleString()}</p>
-                                                                <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-0.5 rounded-full text-[9px] font-black uppercase">Settled</Badge>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
+                                                        </DialogContent>
+                                                    </Dialog>
                                                 );
                                             })
                                         )}

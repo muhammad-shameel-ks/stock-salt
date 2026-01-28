@@ -36,7 +36,8 @@ import {
   ArrowUpRight,
   Clock,
   Wallet,
-  AlertTriangle
+  AlertTriangle,
+  ChevronRight
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -100,7 +101,7 @@ export default function ExtremeDashboard() {
       const [txRes, stockRes, itemRes, menuRes] = await Promise.all([
         supabase
           .from("transactions")
-          .select("*, outlets(name)")
+          .select("*, outlets(name), transaction_items(*, menu_items(name))")
           .gte("created_at", startOfToday)
           .order("created_at", { ascending: false }),
         supabase
@@ -448,26 +449,83 @@ export default function ExtremeDashboard() {
             </div>
             <div className="divide-y max-h-[400px] overflow-y-auto">
               {transactions.map(tx => (
-                <div key={tx.id} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-all group">
-                  <div className="flex items-center gap-6">
-                    <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                      {tx.payment_method === 'UPI' ? <Wallet className="h-6 w-6" /> : <CreditCard className="h-6 w-6" />}
+                <Dialog key={tx.id}>
+                  <DialogTrigger asChild>
+                    <div className="p-6 flex items-center justify-between hover:bg-muted/30 transition-all group cursor-pointer">
+                      <div className="flex items-center gap-6">
+                        <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                          {tx.payment_method === 'UPI' ? <Wallet className="h-6 w-6" /> : <CreditCard className="h-6 w-6" />}
+                        </div>
+                        <div>
+                          <p className="font-black text-sm uppercase group-hover:text-primary transition-colors">{tx.customer_name || "Quick Sale"}</p>
+                          <p className="text-[10px] font-bold opacity-60 uppercase tracking-tighter">{tx.outlets?.name} • {format(new Date(tx.created_at), 'hh:mm a')}</p>
+                        </div>
+                      </div>
+                      <div className="text-right flex items-center gap-4">
+                        <div>
+                          <p className="font-black italic text-lg">₹{tx.total_amount}</p>
+                          <Badge variant="outline" className="text-[8px] h-4 leading-none font-black px-2 mt-1">{tx.payment_method}</Badge>
+                        </div>
+                        <ChevronRight className="h-4 w-4 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-black text-sm uppercase group-hover:text-primary transition-colors">{tx.customer_name || "Quick Sale"}</p>
-                      <p className="text-[10px] font-bold opacity-60 uppercase tracking-tighter">{tx.outlets?.name} • {format(new Date(tx.created_at), 'hh:mm a')}</p>
+                  </DialogTrigger>
+                  <DialogContent className="rounded-[2.5rem] p-8 max-w-md border-2 bg-card">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Transaction Bill</DialogTitle>
+                      <div className="flex justify-between items-center mt-2">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest opacity-40">#{tx.id.slice(0, 8).toUpperCase()}</p>
+                          <p className="text-[10px] font-bold uppercase opacity-60 tracking-tighter">{tx.outlets?.name}</p>
+                        </div>
+                        <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase px-3 py-0.5 opacity-60">
+                          {tx.payment_method}
+                        </Badge>
+                      </div>
+                    </DialogHeader>
+
+                    <div className="mt-6 space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase opacity-40 pl-1">Items Sold</p>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+                          {/* @ts-ignore */}
+                          {tx.transaction_items?.map((item: any) => (
+                            <div key={item.id} className="flex justify-between items-center p-4 rounded-xl bg-muted/40 border">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-black text-sm uppercase italic truncate">{item.menu_items?.name}</p>
+                                <p className="text-[9px] opacity-40 uppercase font-bold">
+                                  {item.quantity} x ₹{item.unit_price}
+                                </p>
+                              </div>
+                              <p className="font-black italic text-sm ml-4">₹{item.subtotal}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t-2 border-dashed border-border/50">
+                        <div className="flex justify-between items-end">
+                          <div>
+                            <p className="text-[10px] font-black uppercase opacity-40">Grand Total</p>
+                            <p className="text-[8px] font-bold opacity-40 uppercase leading-none">Inclusive of all taxes</p>
+                          </div>
+                          <p className="text-4xl font-black italic tracking-tighter">₹{tx.total_amount}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 mt-4">
+                        <div className="flex-1 p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                          <p className="text-[10px] font-black uppercase opacity-40 mb-1">Date</p>
+                          <p className="text-xs font-bold">{format(new Date(tx.created_at), 'MMM dd, yyyy')}</p>
+                        </div>
+                        <div className="flex-1 p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                          <p className="text-[10px] font-black uppercase opacity-40 mb-1">Time</p>
+                          <p className="text-xs font-bold">{format(new Date(tx.created_at), 'hh:mm a')}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right flex items-center gap-4">
-                    <div>
-                      <p className="font-black italic text-lg">₹{tx.total_amount}</p>
-                      <Badge variant="outline" className="text-[8px] h-4 leading-none font-black px-2 mt-1">{tx.payment_method}</Badge>
-                    </div>
-                    <Button size="icon" variant="ghost" className="rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ArrowUpRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                  </DialogContent>
+                </Dialog>
               ))}
               {transactions.length === 0 && (
                 <div className="p-24 text-center">
