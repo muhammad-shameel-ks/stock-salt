@@ -539,6 +539,12 @@ export default function StocksPage() {
                                                                 </Badge>
                                                             </div>
                                                             <div className="flex items-center justify-end gap-2">
+                                                                <span className="text-[9px] font-black uppercase opacity-40">Left in Hub:</span>
+                                                                <Badge variant="outline" className="text-[10px] font-black bg-primary/5 text-primary border-primary/20">
+                                                                    {Math.max(0, (masterStocks.find(s => s.item_id === item.id)?.total_quantity || 0) - distributedStocks.filter(s => s.item_id === item.id).reduce((sum, s) => sum + Number(s.quantity), 0) - (localQuantities[item.id] || 0))} {item.unit}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="flex items-center justify-end gap-2">
                                                                 <span className="text-[9px] font-black uppercase opacity-40">New Balance:</span>
                                                                 <span className="text-[10px] font-black italic">
                                                                     {getLiveMetrics(item.id, selectedOutletId).live + (localQuantities[item.id] || 0)} {item.unit}
