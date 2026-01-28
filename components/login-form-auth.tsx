@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 export function LoginForm({
   className,
@@ -36,32 +36,29 @@ export function LoginForm({
     setError("");
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
         setError(error.message);
-      } else {
-        // Fetch user role for specific redirect
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .single();
+      } else if (data.session) {
+        // Session is established, now fetch user role
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.session.user.id)
+          .single();
 
-          if (profile?.role === "manager") {
-            router.push("/manager");
-          } else {
-            router.push("/dashboard");
-          }
+        if (profile?.role === "manager") {
+          router.push("/manager");
         } else {
           router.push("/dashboard");
         }
         router.refresh();
+      } else {
+        setError("Login successful but no session created. Please try again.");
       }
     } catch (err) {
       setError(

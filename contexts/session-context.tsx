@@ -7,7 +7,7 @@ import {
   useState,
   ReactNode,
 } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 interface SessionContextType {
   session: any | null;

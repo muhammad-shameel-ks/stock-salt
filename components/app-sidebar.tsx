@@ -26,7 +26,7 @@ import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
 import { useState, useEffect } from "react";
 import { useSession } from "@/contexts/session-context";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import {
   Sidebar,
   SidebarContent,

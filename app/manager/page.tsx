@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import { useSession } from "@/contexts/session-context";
 import { cn, getLocalTodayString, getStartOfTodayUTC } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";

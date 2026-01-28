@@ -39,7 +39,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import { useSession } from "@/contexts/session-context";
 import { getStartOfTodayUTC } from "@/lib/utils";
 import { format } from "date-fns";
