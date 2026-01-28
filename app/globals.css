@@ -123,3 +123,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* POS Non-Selection Styles */
+@layer utilities {
+  .pos-container {
+    @apply select-none;
+  }
+  
+  .pos-container * {
+    @apply select-none;
+  }
+  
+  .pos-container img {
+    @apply select-none pointer-events-none;
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+  }
+  
+  .pos-container input,
+  .pos-container textarea {
+    @apply select-text;
+  }
+}
