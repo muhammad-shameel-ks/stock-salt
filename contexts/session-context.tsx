@@ -8,6 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { LoadingScreen } from "@/components/loading-screen";
 
 interface SessionContextType {
   session: any | null;
@@ -52,6 +53,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     getSession();
   }, []);
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <SessionContext.Provider value={{ session, user, loading }}>

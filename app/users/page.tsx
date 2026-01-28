@@ -237,10 +237,14 @@ export default function UsersPage() {
 
                         {/* Users List */}
                         {loading ? (
-                            <div className="space-y-3">
-                                {[1, 2, 3].map(i => (
-                                    <div key={i} className="h-20 rounded-3xl bg-muted animate-pulse" />
-                                ))}
+                            <div className="space-y-6 animate-in fade-in duration-500">
+                                <div className="h-40 rounded-[2.5rem] bg-muted animate-pulse" />
+                                <div className="h-12 rounded-2xl bg-muted animate-pulse" />
+                                <div className="space-y-3">
+                                    {[1, 2, 3, 4, 5].map(i => (
+                                        <div key={i} className="h-20 rounded-3xl bg-muted animate-pulse" />
+                                    ))}
+                                </div>
                             </div>
                         ) : filteredUsers.length === 0 ? (
                             <Card className="p-12 rounded-[2rem] border-2 border-dashed border-primary/20 bg-primary/5 flex flex-col items-center text-center">

@@ -198,8 +198,35 @@ export default function ExtremeDashboard() {
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [transactions]);
 
+  if (loading) {
+    return (
+      <SidebarProvider>
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col p-6 gap-8 bg-muted/20 animate-in fade-in duration-500">
+            <div className="space-y-4">
+              <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+              <div className="h-12 w-64 rounded-2xl bg-muted animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-40 rounded-[2.5rem] bg-muted animate-pulse" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 h-[400px] rounded-[3rem] bg-muted animate-pulse" />
+              <div className="h-[400px] rounded-[3rem] bg-muted animate-pulse" />
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    );
+  }
+
   return (
     <SidebarProvider>
+
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
