@@ -43,8 +43,25 @@ export function LoginForm({
       if (error) {
         setError(error.message);
       } else {
-        // Redirect to dashboard or home page after successful login
-        window.location.href = "/dashboard";
+        // Redirect based on role for snappier experience
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .single();
+
+          if (profile?.role === "manager") {
+            window.location.href = "/manager";
+          } else if (profile?.role === "staff") {
+            window.location.href = "/staff";
+          } else {
+            window.location.href = "/dashboard";
+          }
+        } else {
+          window.location.href = "/dashboard";
+        }
       }
     } catch (err) {
       setError(
