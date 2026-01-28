@@ -21,6 +21,8 @@ import {
     Store,
     ArrowRight,
     TrendingUp,
+    ChevronDown,
+    ChevronUp,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -101,6 +103,7 @@ export default function StocksPage() {
     const [stockDate, setStockDate] = useState<Date>(new Date());
     const [searchQuery, setSearchQuery] = useState("");
     const [saving, setSaving] = useState(false);
+    const [showDetails, setShowDetails] = useState(false);
 
     // Local state for distribution/master editing
     const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
@@ -251,6 +254,40 @@ export default function StocksPage() {
             live: Math.max(0, totalDistributed - totalSold)
         };
     }, [distributedStocks, soldItems]);
+
+    const detailedBreakdown = useMemo(() => {
+        return masterStocks.map(master => {
+            const item = menuItems.find(m => m.id === master.item_id);
+            const distributions = distributedStocks.filter(s => s.item_id === master.item_id);
+            const totalDistributed = distributions.reduce((sum, s) => sum + Number(s.quantity), 0);
+
+            const outletDetails = outlets.map(outlet => {
+                const outletDist = distributions.filter(s => s.outlet_id === outlet.id);
+                const distributedQty = outletDist.reduce((sum, s) => sum + Number(s.quantity), 0);
+                const soldQty = soldItems
+                    .filter(s => s.item_id === master.item_id && s.transactions?.outlet_id === outlet.id)
+                    .reduce((sum, s) => sum + Number(s.quantity), 0);
+
+                return {
+                    outletId: outlet.id,
+                    outletName: outlet.name,
+                    distributed: distributedQty,
+                    sold: soldQty,
+                    remaining: Math.max(0, distributedQty - soldQty)
+                };
+            }).filter(d => d.distributed > 0);
+
+            return {
+                itemId: master.item_id,
+                itemName: item?.name || "Unknown Item",
+                unit: item?.unit || "unit",
+                totalMaster: Number(master.total_quantity),
+                totalDistributed,
+                remainingInMaster: Math.max(0, Number(master.total_quantity) - totalDistributed),
+                outletDetails
+            };
+        });
+    }, [masterStocks, menuItems, distributedStocks, soldItems, outlets]);
 
     const handleUpdateLocal = (itemId: string, value: number) => {
         if (viewMode === "distribution") {
@@ -676,7 +713,7 @@ export default function StocksPage() {
                             </div>
 
                             {/* Global Metrics Cards */}
-                            <div className="grid grid-cols-3 gap-3 mb-10">
+                            <div className="grid grid-cols-3 gap-3 mb-8">
                                 <div className="p-5 rounded-[2rem] bg-card border-2 shadow-sm flex flex-col gap-1">
                                     <span className="text-[9px] font-black uppercase tracking-wider opacity-40">Total Sent</span>
                                     <span className="text-2xl font-black italic tracking-tighter tabular-nums">{globalMetrics.sent}</span>
@@ -693,6 +730,88 @@ export default function StocksPage() {
                                     <div className="h-1 w-8 bg-amber-500/20 rounded-full mt-1" />
                                 </div>
                             </div>
+
+                            {/* Detailed Breakdown Toggle */}
+                            <div className="flex items-center justify-between mb-6 px-1">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80">Inventory Breakdown</h3>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowDetails(!showDetails)}
+                                    className="text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 rounded-xl h-8"
+                                >
+                                    {showDetails ? "Hide Details" : "See Details"}
+                                    {showDetails ? <ChevronUp className="ml-1 h-3 w-3" /> : <ChevronDown className="ml-1 h-3 w-3" />}
+                                </Button>
+                            </div>
+
+                            {showDetails && (
+                                <div className="space-y-4 mb-10 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    {detailedBreakdown.length === 0 ? (
+                                        <div className="text-center py-6 bg-muted/30 rounded-3xl border-2 border-dashed">
+                                            <p className="text-xs font-bold text-muted-foreground">No stock data available for breakdown</p>
+                                        </div>
+                                    ) : (
+                                        detailedBreakdown.map((item) => (
+                                            <Card key={item.itemId} className="p-0 overflow-hidden border-2 bg-card rounded-[2rem] shadow-sm">
+                                                <div className="p-5 border-b bg-muted/30">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                                                <PackageIcon className="h-5 w-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-black text-sm">{item.itemName}</p>
+                                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.unit}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-[9px] font-black uppercase opacity-40 leading-none mb-1">Left in Master</p>
+                                                            <Badge variant="outline" className="bg-emerald-500/5 text-emerald-600 border-emerald-500/20 font-black">
+                                                                {item.remainingInMaster} {item.unit}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="bg-background/50 p-3 rounded-2xl border">
+                                                            <p className="text-[8px] font-black uppercase opacity-40 mb-1">Total Initial</p>
+                                                            <p className="font-black text-sm tabular-nums">{item.totalMaster}</p>
+                                                        </div>
+                                                        <div className="bg-background/50 p-3 rounded-2xl border">
+                                                            <p className="text-[8px] font-black uppercase opacity-40 mb-1">Distributed</p>
+                                                            <p className="font-black text-sm tabular-nums">{item.totalDistributed}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {item.outletDetails.length > 0 && (
+                                                    <div className="p-4 bg-muted/5 space-y-2">
+                                                        <p className="text-[8px] font-black uppercase tracking-wider opacity-40 px-1 mb-2">Outlet Allocation</p>
+                                                        {item.outletDetails.map((outlet) => (
+                                                            <div key={outlet.outletId} className="flex items-center justify-between p-3 bg-card border-none rounded-2xl shadow-inner-sm bg-muted/20">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Store className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                    <span className="text-[10px] font-bold">{outlet.outletName}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="text-right">
+                                                                        <span className="text-[8px] font-black uppercase opacity-40 block leading-none">Sent</span>
+                                                                        <span className="text-xs font-black tabular-nums">{outlet.distributed}</span>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <span className="text-[8px] font-black uppercase opacity-40 block leading-none">Left</span>
+                                                                        <span className="text-xs font-black tabular-nums text-emerald-600">{outlet.remaining}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </Card>
+                                        ))
+                                    )}
+                                </div>
+                            )}
 
                             {/* Section Header */}
                             <div className="flex items-center justify-between mb-4 pl-1">
