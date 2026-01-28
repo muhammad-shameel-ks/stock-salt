@@ -23,7 +23,7 @@ import {
     TrendingUp,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import { useSession } from "@/contexts/session-context";
 import { format, startOfDay } from "date-fns";
 import { StockCounter } from "@/components/stock-counter";

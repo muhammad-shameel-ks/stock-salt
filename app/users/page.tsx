@@ -2,7 +2,7 @@
 
 import { PlusIcon, Users as UsersIcon, Shield, Store, UserCircle, Edit2, Trash2, Search, MoreVertical, Key, Lock, Eye, EyeOff, CheckCircle2, RotateCcw } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import { useSession } from "@/contexts/session-context";
 import { UserForm } from "@/components/user-form";
 import { AppSidebar } from "@/components/app-sidebar";

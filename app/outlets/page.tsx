@@ -2,7 +2,7 @@
 
 import { PlusIcon, Store, MapPin, Users, Edit2, Search, MoreVertical, Trash2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import { useSession } from "@/contexts/session-context";
 import { OutletForm } from "@/components/outlet-form";
 import { AppSidebar } from "@/components/app-sidebar";

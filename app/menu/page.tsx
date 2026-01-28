@@ -2,7 +2,7 @@
 
 import { PlusIcon, Search, LayoutGrid, Package, TrendingUp, MoreVertical, Edit2, Trash2, ChevronLeft } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import { useSession } from "@/contexts/session-context";
 import { MenuForm } from "@/components/menu-form";
 import { cn } from "@/lib/utils";
