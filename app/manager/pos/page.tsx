@@ -315,7 +315,7 @@ export default function POSPage() {
             <AppSidebar variant="inset" />
             <SidebarInset className="bg-[#f8f9fa] dark:bg-[#0a0a0a]">
                 <SiteHeader />
-                <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)] overflow-hidden">
+                <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)] overflow-hidden pos-container">
 
                     {/* MENU SECTION */}
                     <div className="flex-1 flex flex-col min-w-0 border-r-2 border-border/50">
@@ -331,13 +331,13 @@ export default function POSPage() {
                                 />
                             </div>
 
-                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar select-none">
                                 {categories.map(cat => (
                                     <button
                                         key={cat}
                                         onClick={() => setSelectedCategory(cat)}
                                         className={cn(
-                                            "px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all whitespace-nowrap",
+                                            "px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all whitespace-nowrap select-none",
                                             selectedCategory === cat
                                                 ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105"
                                                 : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -371,16 +371,16 @@ export default function POSPage() {
                                                 key={item.id}
                                                 onClick={() => addToCart(item)}
                                                 className={cn(
-                                                    "group relative bg-card rounded-[2rem] border-2 border-transparent p-4 transition-all active:scale-95 cursor-pointer flex flex-col gap-3 overflow-hidden",
+                                                    "group relative bg-card rounded-[2rem] border-2 border-transparent p-4 transition-all active:scale-95 cursor-pointer flex flex-col gap-3 overflow-hidden select-none",
                                                     count > 0 ? "border-primary shadow-xl shadow-primary/10" : "hover:border-border hover:shadow-lg",
                                                     (item.requires_daily_stock && (inventory[item.id] || 0) <= 0) && "opacity-60 saturate-50"
                                                 )}
                                             >
-                                                <div className="aspect-square rounded-2xl bg-muted/50 overflow-hidden relative">
+                                                <div className="aspect-square rounded-2xl bg-muted/50 overflow-hidden relative select-none">
                                                     {item.image_url ? (
-                                                        <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition-transform group-hover:scale-110" />
+                                                        <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition-transform group-hover:scale-110 pointer-events-none select-none" draggable={false} />
                                                     ) : (
-                                                        <div className="h-full w-full flex items-center justify-center text-muted-foreground/20">
+                                                        <div className="h-full w-full flex items-center justify-center text-muted-foreground/20 select-none">
                                                             <Zap className="h-12 w-12" />
                                                         </div>
                                                     )}
@@ -449,9 +449,9 @@ export default function POSPage() {
                                 <div className="space-y-2">
                                     {cart.map(item => (
                                         <div key={item.id} className="p-4 rounded-3xl bg-muted/30 group transition-all hover:bg-muted/50 border-2 border-transparent">
-                                            <div className="flex items-center gap-4">
-                                                <div className="h-12 w-12 rounded-xl bg-muted/80 overflow-hidden shrink-0">
-                                                    {item.image_url && <img src={item.image_url} className="h-full w-full object-cover" />}
+                                            <div className="flex items-center gap-4 select-none">
+                                                <div className="h-12 w-12 rounded-xl bg-muted/80 overflow-hidden shrink-0 select-none">
+                                                    {item.image_url && <img src={item.image_url} className="h-full w-full object-cover pointer-events-none select-none" draggable={false} />}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <h5 className="font-black italic uppercase truncate text-[13px]">{item.name}</h5>
@@ -532,7 +532,7 @@ export default function POSPage() {
                                                         key={method.id}
                                                         onClick={() => handleSettle(method.id)}
                                                         disabled={isSettling || settlementSuccess}
-                                                        className="group flex flex-col items-center gap-4 transition-all"
+                                                        className="group flex flex-col items-center gap-4 transition-all select-none"
                                                     >
                                                         <div className={cn(
                                                             "h-24 w-24 md:h-32 md:w-32 rounded-[2.5rem] flex items-center justify-center text-white transition-all group-hover:scale-110 active:scale-90 shadow-2xl",
@@ -593,9 +593,9 @@ export default function POSPage() {
                                     <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-40">
                                         {cart.map(item => (
                                             <div key={item.id} className="p-4 rounded-3xl bg-muted/40 border">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-14 w-14 rounded-2xl bg-muted overflow-hidden shrink-0">
-                                                        {item.image_url && <img src={item.image_url} className="h-full w-full object-cover" />}
+                                                <div className="flex items-center gap-4 select-none">
+                                                    <div className="h-14 w-14 rounded-2xl bg-muted overflow-hidden shrink-0 select-none">
+                                                        {item.image_url && <img src={item.image_url} className="h-full w-full object-cover pointer-events-none select-none" draggable={false} />}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <h5 className="font-black italic uppercase text-sm truncate">{item.name}</h5>
