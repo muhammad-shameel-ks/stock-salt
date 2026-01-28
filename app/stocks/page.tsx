@@ -701,9 +701,19 @@ export default function StocksPage() {
 
                             <div className="space-y-3">
                                 {loading ? (
-                                    Array.from({ length: 3 }).map((_, i) => (
-                                        <div key={i} className="h-24 rounded-3xl bg-muted animate-pulse" />
-                                    ))
+                                    <div className="space-y-10 animate-in fade-in duration-500">
+                                        <div className="h-48 rounded-[2.5rem] bg-gradient-to-br from-muted/50 to-muted animate-pulse" />
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {[1, 2, 3].map(i => (
+                                                <div key={i} className="h-28 rounded-[2rem] bg-muted animate-pulse" />
+                                            ))}
+                                        </div>
+                                        <div className="space-y-3">
+                                            {[1, 2, 3, 4].map((_, i) => (
+                                                <div key={i} className="h-24 rounded-3xl bg-muted animate-pulse" />
+                                            ))}
+                                        </div>
+                                    </div>
                                 ) : outlets.length === 0 ? (
                                     <div className="text-center py-12 px-6 rounded-3xl border-2 border-dashed border-muted">
                                         <Store className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />

@@ -150,13 +150,19 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user } = useSession();
+  const { user, loading: authLoading } = useSession();
   const [role, setRole] = useState<string | null>(null);
   const [orgName, setOrgName] = useState("SALT HUB");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user) return;
+      if (!user) {
+        if (!authLoading) setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       const { data: profile } = await supabase
         .from("profiles")
         .select("role, org_id, organizations(name)")
@@ -171,11 +177,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           setOrgName(profile.organizations.name);
         }
       }
+      setLoading(false);
     };
     fetchProfile();
-  }, [user]);
+  }, [user, authLoading]);
 
   const navItems = React.useMemo(() => {
+    if (loading) return [];
     if (!role) return [];
 
     const baseNav = [
@@ -204,7 +212,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
 
     return baseNav; // Staff only get Dashboard/Placeholder
-  }, [role]);
+  }, [role, loading]);
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -217,16 +225,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <a href="#">
                 <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-black italic tracking-tighter uppercase">{orgName}</span>
+                <span className={cn(
+                  "text-base font-black italic tracking-tighter uppercase transition-all duration-500",
+                  loading ? "animate-pulse opacity-20" : "opacity-100"
+                )}>
+                  {loading ? "Loading Terminal" : orgName}
+                </span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navItems} />
-        {role === "admin" && <NavDocuments items={data.documents} />}
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        {loading ? (
+          <div className="p-4 space-y-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <div className="h-5 w-5 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            <NavMain items={navItems} />
+            {role === "admin" && <NavDocuments items={data.documents} />}
+            <NavSecondary items={data.navSecondary} className="mt-auto" />
+          </>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <NavUser />
@@ -234,3 +260,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     </Sidebar>
   );
 }
+
+import { cn } from "@/lib/utils";
+
