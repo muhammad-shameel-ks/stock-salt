@@ -25,7 +25,8 @@ import {
     Zap,
     AlertTriangle,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    TrendingUp
 } from "lucide-react";
 import { cn, getLocalTodayString, getStartOfTodayUTC } from "@/lib/utils";
 import { toast } from "sonner";
@@ -92,24 +93,74 @@ export default function POSPage() {
             fetchMenu();
             fetchInventory();
 
-            // Realtime Subscription
+            // Optimized Realtime Subscription
             const channel = supabase
                 .channel('pos-realtime')
                 .on('postgres_changes', {
-                    event: '*',
+                    event: 'INSERT',
                     schema: 'public',
                     table: 'daily_stocks'
-                }, () => fetchInventory())
+                }, (payload) => {
+                    const { item_id, quantity } = payload.new;
+                    setInventory(prev => ({
+                        ...prev,
+                        [item_id]: (prev[item_id] || 0) + Number(quantity)
+                    }));
+                    setIsLocked(false);
+                })
                 .on('postgres_changes', {
-                    event: '*',
+                    event: 'UPDATE',
                     schema: 'public',
-                    table: 'transactions'
-                }, () => fetchInventory())
+                    table: 'daily_stocks'
+                }, (payload) => {
+                    const { item_id, quantity } = payload.new;
+                    setInventory(prev => ({
+                        ...prev,
+                        [item_id]: Number(quantity)
+                    }));
+                })
                 .on('postgres_changes', {
-                    event: '*',
+                    event: 'INSERT',
                     schema: 'public',
-                    table: 'master_stocks'
-                }, () => fetchMenu())
+                    table: 'transaction_items'
+                }, (payload) => {
+                    const { item_id, quantity } = payload.new;
+                    setInventory(prev => ({
+                        ...prev,
+                        [item_id]: (prev[item_id] || 0) - Number(quantity)
+                    }));
+                })
+                .on('broadcast', { event: 'stock_available' }, (payload) => {
+                    // Admin sent stock distribution to this outlet
+                    fetchInventory();
+                })
+                .on('broadcast', { event: 'price_changed' }, (payload) => {
+                    // Admin updated price for this item
+                    const { item_id, daily_price, item_name } = payload.payload;
+                    setMenuWithPrices(prev => {
+                        const updated = prev.map(item => {
+                            if (item.id === item_id) {
+                                return { ...item, price: Number(daily_price) };
+                            }
+                            return item;
+                        });
+                        return updated;
+                    });
+                    toast.success(`Price updated: ${item_name}`, {
+                        description: `New price: ₹${daily_price}`,
+                        icon: <TrendingUp className="h-4 w-4 text-primary" />,
+                        className: "rounded-2xl border-2 border-primary/20"
+                    });
+                })
+                .on('broadcast', { event: 'stock_low' }, (payload) => {
+                    // Low stock alert from another terminal
+                    const { item_name, quantity } = payload.payload;
+                    toast.warning(`Low Stock: ${item_name}`, {
+                        description: `Only ${quantity} remaining`,
+                        icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+                        className: "rounded-2xl border-2 border-amber-500/20"
+                    });
+                })
                 .subscribe();
 
             return () => {
@@ -326,6 +377,26 @@ export default function POSPage() {
                 .insert(txItems);
 
             if (itemsError) throw itemsError;
+
+            // Low stock alert broadcast
+            const currentInventory = { ...inventory };
+            Object.entries(currentInventory).forEach(([itemId, qty]) => {
+                const menuItem = menu.find(m => m.id === itemId);
+                if (menuItem?.requires_daily_stock && qty > 0 && qty <= 10) {
+                    supabase.channel('stock-alerts')
+                        .send({
+                            type: 'broadcast',
+                            event: 'stock_low',
+                            payload: {
+                                item_id: itemId,
+                                item_name: menuItem.name,
+                                quantity: qty,
+                                outlet_id: profile.outlet_id,
+                                timestamp: Date.now()
+                            }
+                        });
+                }
+            });
 
             setSettlementSuccess(true);
 
