@@ -155,6 +155,7 @@ export default function StocksPage() {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_stocks' }, () => fetchData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'transaction_items' }, () => fetchData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'master_stocks' }, () => fetchData())
             .subscribe();
 
         return () => {
@@ -533,6 +534,17 @@ export default function StocksPage() {
                                                     {item.requires_daily_stock ? (
                                                         <>
                                                             <div className="flex items-center justify-end gap-2">
+                                                                <span className="text-[9px] font-black uppercase opacity-40">Today's Price:</span>
+                                                                <span className={cn(
+                                                                    "text-[10px] font-black italic",
+                                                                    masterStocks.find(s => s.item_id === item.id)?.daily_price && masterStocks.find(s => s.item_id === item.id)?.daily_price !== item.base_price
+                                                                        ? "text-amber-600"
+                                                                        : "text-foreground"
+                                                                )}>
+                                                                    ₹{masterStocks.find(s => s.item_id === item.id)?.daily_price || item.base_price}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-end gap-2">
                                                                 <span className="text-[9px] font-black uppercase opacity-40">Live on Ground:</span>
                                                                 <Badge variant="outline" className="text-[10px] font-black bg-emerald-500/5 text-emerald-600 border-emerald-500/20">
                                                                     {getLiveMetrics(item.id, selectedOutletId).live} {item.unit}
@@ -552,7 +564,13 @@ export default function StocksPage() {
                                                             </div>
                                                         </>
                                                     ) : (
-                                                        <Badge variant="outline" className="text-[8px] px-1.5 py-0 border-primary/20 text-primary bg-primary/5 leading-none h-4 uppercase font-black">Continuous Supply</Badge>
+                                                        <div className="space-y-1 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <span className="text-[9px] font-black uppercase opacity-40">Price:</span>
+                                                                <span className="text-[10px] font-black italic">₹{item.base_price}</span>
+                                                            </div>
+                                                            <Badge variant="outline" className="text-[8px] px-1.5 py-0 border-primary/20 text-primary bg-primary/5 leading-none h-4 uppercase font-black">Continuous Supply</Badge>
+                                                        </div>
                                                     )}
                                                 </div>
                                             )}
