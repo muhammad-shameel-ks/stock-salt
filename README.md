@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# stock-salt
+
+This is a Next.js project bootstrapped with create-next-app. It uses the App Router and Next/font to load Geist, a UI font from Vercel.
 
 ## Getting Started
 
-First, run the development server:
+Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js is required. Install it from https://nodejs.org
+- A package manager (npm, yarn, pnpm, or bun)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Install
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Run one of the following commands to install dependencies:
+  - npm install
+  - yarn install
+  - pnpm i
+  - bun install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Development
 
-## Learn More
+- Start the development server:
+  - npm run dev
+  - yarn dev
+  - pnpm dev
+  - bun dev
+- Open http://localhost:3000 in your browser to see the app.
+- You can edit app/page.tsx; changes hot-reload automatically.
 
-To learn more about Next.js, take a look at the following resources:
+Build for production
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- To build:
+  - npm run build
+  - yarn build
+  - pnpm build
+  - bun build
+- To run the production server after building:
+  - npm run start
+  - yarn start
+  - pnpm start
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Fonts
 
-## Deploy on Vercel
+- This project uses next/font to optimize and load Geist font.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Features
+- Real-time, multi-outlet inventory and analytics dashboard with live metrics (revenue, orders, stock)
+- Live transaction stream with per-transaction detail and on-demand billing details
+- Master stock management: define daily master stock per item with optional daily pricing
+- Distribution workflow: allocate master stock to outlets and monitor live stock levels
+- Live inventory breakdown by item/outlet, including distribution logs
+- Outlet rankings and revenue momentum charts for quick insights
+- Admin controls with a dedicated Danger Zone safeguarded by confirmation dialogs
+- Role-based access controls for admin vs standard users
+- Rich, card-based UI with gradients, icons, and responsive design
+- Real-time data flow using Supabase channels to refresh dashboards on data changes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Learn More
+
+- Next.js Documentation: https://nextjs.org/docs
+- Learn Next.js: https://nextjs.org/learn
+- Next.js GitHub: https://github.com/vercel/next.js
+
+Deploy on Vercel
+
+- The easiest way to deploy is through the Vercel platform:
+  https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme
+- See Next.js deployment docs for more details:
+  https://nextjs.org/docs/app/building-your-application/deploying
