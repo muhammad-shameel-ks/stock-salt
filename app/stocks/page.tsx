@@ -149,13 +149,27 @@ export default function StocksPage() {
     useEffect(() => {
         fetchData();
 
-        // Realtime Subscription for Admin Hub
+        // Optimized Realtime Subscription for Admin Hub
         const channel = supabase
             .channel('admin-stocks-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_stocks' }, () => fetchData())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchData())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'transaction_items' }, () => fetchData())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'master_stocks' }, () => fetchData())
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transaction_items' }, () => {
+                fetchData();
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'daily_stocks' }, (payload) => {
+                setDistributedStocks(prev => [...prev, payload.new as DailyStock]);
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'daily_stocks' }, (payload) => {
+                setDistributedStocks(prev => prev.map(stock => stock.id === payload.new.id ? payload.new as DailyStock : stock));
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'master_stocks' }, (payload) => {
+                setMasterStocks(prev => {
+                    const exists = prev.find(ms => ms.item_id === payload.new.item_id && ms.stock_date === payload.new.stock_date);
+                    if (exists) {
+                        return prev.map(ms => ms.item_id === payload.new.item_id && ms.stock_date === payload.new.stock_date ? payload.new as MasterStock : ms);
+                    }
+                    return [...prev, payload.new as MasterStock];
+                });
+            })
             .subscribe();
 
         return () => {
@@ -373,6 +387,24 @@ export default function StocksPage() {
 
             if (error) throw error;
 
+            // Broadcast price changes to POS terminals
+            upserts.forEach((item) => {
+                const menuItem = menuItems.find(m => m.id === item.item_id);
+                if (menuItem) {
+                    supabase.channel('price-updates')
+                        .send({
+                            type: 'broadcast',
+                            event: 'price_changed',
+                            payload: {
+                                item_id: item.item_id,
+                                item_name: menuItem.name,
+                                daily_price: item.daily_price,
+                                stock_date: formattedDate
+                            }
+                        });
+                }
+            });
+
             toast.success("Master stock initialized");
             fetchData();
             setViewMode("hub");
@@ -397,29 +429,84 @@ export default function StocksPage() {
 
             if (!profile?.org_id) return;
 
-            // In new logic, we just INSERT the adjustments (deltas)
-            const upserts = Object.entries(localQuantities)
-                .filter(([_, qty]) => qty !== 0) // Allow negative or positive adjustments
-                .map(([itemId, qty]) => ({
+            // Fetch existing daily stocks for this outlet/date
+            const { data: existingStocks } = await supabase
+                .from("daily_stocks")
+                .select("item_id, quantity")
+                .eq("outlet_id", selectedOutletId)
+                .eq("stock_date", formattedDate);
+
+            const existingStockMap = new Map(
+                existingStocks?.map(s => [s.item_id, Number(s.quantity)]) || []
+            );
+
+            // Calculate final quantities by applying adjustments
+            const updates: any[] = [];
+            const inserts: any[] = [];
+
+            Object.entries(localQuantities).forEach(([itemId, qty]) => {
+                if (qty === 0) return;
+
+                const currentQty = existingStockMap.get(itemId) || 0;
+                const newQty = currentQty + qty;
+
+                if (newQty < 0) {
+                    toast.error(`Cannot reduce ${menuItems.find(m => m.id === itemId)?.name || itemId} below 0`);
+                    return;
+                }
+
+                const entry = {
                     org_id: profile.org_id,
                     outlet_id: selectedOutletId,
                     item_id: itemId,
                     stock_date: formattedDate,
-                    quantity: qty,
+                    quantity: newQty,
                     unit: menuItems.find(m => m.id === itemId)?.unit || "unit",
                     created_by: user.id
-                }));
+                };
 
-            if (upserts.length === 0) {
+                if (existingStockMap.has(itemId)) {
+                    updates.push(entry);
+                } else {
+                    inserts.push(entry);
+                }
+            });
+
+            if (inserts.length > 0) {
+                const { error: insertError } = await supabase
+                    .from("daily_stocks")
+                    .insert(inserts);
+                if (insertError) throw insertError;
+            }
+
+            if (updates.length > 0) {
+                for (const update of updates) {
+                    const { error: updateError } = await supabase
+                        .from("daily_stocks")
+                        .update({ quantity: update.quantity })
+                        .eq("outlet_id", selectedOutletId)
+                        .eq("item_id", update.item_id)
+                        .eq("stock_date", formattedDate);
+                    if (updateError) throw updateError;
+                }
+            }
+
+            if (inserts.length === 0 && updates.length === 0) {
                 setViewMode("hub");
                 return;
             }
 
-            const { error } = await supabase
-                .from("daily_stocks")
-                .insert(upserts);
-
-            if (error) throw error;
+            // Broadcast stock available to POS terminals
+            supabase.channel('stock-distribution')
+                .send({
+                    type: 'broadcast',
+                    event: 'stock_available',
+                    payload: {
+                        outlet_id: selectedOutletId,
+                        timestamp: Date.now(),
+                        items: [...inserts, ...updates]
+                    }
+                });
 
             toast.success("Outlet stock updated");
             fetchData();
