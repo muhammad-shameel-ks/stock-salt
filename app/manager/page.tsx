@@ -67,19 +67,77 @@ export default function ManagerDashboard() {
         if (user) {
             fetchData();
 
-            // Realtime Sync
+            // Optimized Realtime Sync
             const channel = supabase
                 .channel('manager-dash-realtime')
                 .on('postgres_changes', {
-                    event: '*',
-                    schema: 'public',
-                    table: 'daily_stocks'
-                }, () => fetchData())
-                .on('postgres_changes', {
-                    event: '*',
+                    event: 'INSERT',
                     schema: 'public',
                     table: 'transactions'
-                }, () => fetchData())
+                }, async (payload) => {
+                    // Fetch full transaction with items for inventory calculation
+                    const { data: fullTx } = await supabase
+                        .from("transactions")
+                        .select("*, transaction_items(*, menu_items(name))")
+                        .eq("id", payload.new.id)
+                        .single();
+
+                    setTransactions(prev => {
+                        const withItems = prev.length === 0 ? [fullTx] : (txs => [fullTx, ...txs].slice(0, 10))(prev);
+                        return [...withItems];
+                    });
+                })
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'transaction_items'
+                }, async (payload) => {
+                    // When items are sold, refresh transactions to get full data
+                    const txId = payload.new.transaction_id;
+                    const { data: fullTx } = await supabase
+                        .from("transactions")
+                        .select("*, transaction_items(*, menu_items(name))")
+                        .eq("id", txId)
+                        .single();
+
+                    if (fullTx) {
+                        setTransactions(prev => {
+                            const existingIndex = prev.findIndex(t => t.id === txId);
+                            if (existingIndex >= 0) {
+                                const updated = [...prev];
+                                updated[existingIndex] = fullTx;
+                                return updated;
+                            }
+                            return [fullTx, ...prev].slice(0, 10);
+                        });
+                    }
+                })
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'daily_stocks'
+                }, (payload) => {
+                    const newDist = payload.new as InventoryItem;
+                    setAllDistributions(prev => [...prev, newDist]);
+                })
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'daily_stocks'
+                }, (payload) => {
+                    const updatedDist = payload.new as any;
+                    setAllDistributions(prev => prev.map(dist => 
+                        dist.id === updatedDist.id 
+                            ? { ...dist, ...updatedDist } // Preserve menu_items, update only stock fields
+                            : dist
+                    ));
+                })
+                .on('broadcast', { event: 'stock_available' }, (payload) => {
+                    // Admin sent stock distribution to this outlet
+                    if (user?.outlet_id === payload.payload.outlet_id) {
+                        fetchData();
+                    }
+                })
                 .subscribe();
 
             return () => {
