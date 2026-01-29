@@ -59,12 +59,17 @@ interface MenuItem {
     requires_daily_stock: boolean;
 }
 
-interface CartItem extends MenuItem {
+interface MenuItemWithPrice extends MenuItem {
+    price: number;
+}
+
+interface CartItem extends MenuItemWithPrice {
     quantity: number;
 }
 
 export default function POSPage() {
     const [menu, setMenu] = useState<MenuItem[]>([]);
+    const [menuWithPrices, setMenuWithPrices] = useState<MenuItemWithPrice[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -100,6 +105,11 @@ export default function POSPage() {
                     schema: 'public',
                     table: 'transactions'
                 }, () => fetchInventory())
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'master_stocks'
+                }, () => fetchMenu())
                 .subscribe();
 
             return () => {
@@ -119,14 +129,39 @@ export default function POSPage() {
                 .single();
 
             if (profile?.org_id) {
-                const { data, error } = await supabase
-                    .from("menu_items")
-                    .select("*")
-                    .eq("org_id", profile.org_id)
-                    .order("category");
+                const [menuRes, masterStocksRes] = await Promise.all([
+                    supabase
+                        .from("menu_items")
+                        .select("*")
+                        .eq("org_id", profile.org_id)
+                        .order("category"),
+                    supabase
+                        .from("master_stocks")
+                        .select("item_id, daily_price")
+                        .eq("org_id", profile.org_id)
+                        .eq("stock_date", todayLocal)
+                ]);
 
-                if (error) throw error;
-                setMenu(data || []);
+                if (menuRes.error) throw menuRes.error;
+                if (masterStocksRes.error) throw masterStocksRes.error;
+
+                const menuItems = menuRes.data || [];
+                const masterStocks = masterStocksRes.data || [];
+                const stockPriceMap: Record<string, number> = {};
+                
+                masterStocks.forEach(ms => {
+                    if (ms.daily_price) {
+                        stockPriceMap[ms.item_id] = Number(ms.daily_price);
+                    }
+                });
+
+                const menuWithPrices = menuItems.map(item => ({
+                    ...item,
+                    price: stockPriceMap[item.id] || item.base_price
+                }));
+
+                setMenu(menuItems);
+                setMenuWithPrices(menuWithPrices);
             }
         } catch (err: any) {
             toast.error("Failed to load menu");
@@ -202,6 +237,7 @@ export default function POSPage() {
     }, [menu, searchQuery, selectedCategory]);
 
     const addToCart = (item: MenuItem) => {
+        const menuItemWithPrice = menuWithPrices.find(m => m.id === item.id) || { ...item, price: item.base_price };
         const remaining = inventory[item.id] || 0;
         const currentInCart = cart.find(i => i.id === item.id)?.quantity || 0;
 
@@ -210,9 +246,9 @@ export default function POSPage() {
             setCart(prev => {
                 const existing = prev.find(i => i.id === item.id);
                 if (existing) {
-                    return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+                    return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i) as CartItem[];
                 }
-                return [...prev, { ...item, quantity: 1 }];
+                return [...prev, { ...menuItemWithPrice, quantity: 1 }];
             });
             return;
         }
@@ -230,9 +266,9 @@ export default function POSPage() {
         setCart(prev => {
             const existing = prev.find(i => i.id === item.id);
             if (existing) {
-                return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+                return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i) as CartItem[];
             }
-            return [...prev, { ...item, quantity: 1 }];
+            return [...prev, { ...menuItemWithPrice, quantity: 1 }];
         });
     };
 
@@ -246,7 +282,7 @@ export default function POSPage() {
         });
     };
 
-    const cartTotal = cart.reduce((acc, item) => acc + (item.base_price * item.quantity), 0);
+    const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
     const handleSettle = async (method: string) => {
@@ -281,8 +317,8 @@ export default function POSPage() {
                 transaction_id: tx.id,
                 item_id: item.id,
                 quantity: item.quantity,
-                unit_price: item.base_price,
-                subtotal: item.base_price * item.quantity
+                unit_price: item.price,
+                subtotal: item.price * item.quantity
             }));
 
             const { error: itemsError } = await supabase
@@ -409,7 +445,7 @@ export default function POSPage() {
                                                     <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">{item.category}</p>
                                                     <h4 className="font-black italic uppercase leading-none truncate text-sm">{item.name}</h4>
                                                     <div className="flex items-center justify-between mt-2">
-                                                        <span className="font-black italic text-md">₹{item.base_price}</span>
+                                                        <span className="font-black italic text-md">₹{menuWithPrices.find(m => m.id === item.id)?.price || item.base_price}</span>
                                                         <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary transition-colors group-hover:bg-primary group-hover:text-white">
                                                             <Plus className="h-4 w-4" />
                                                         </div>
@@ -453,9 +489,9 @@ export default function POSPage() {
                                                 <div className="h-12 w-12 rounded-xl bg-muted/80 overflow-hidden shrink-0 select-none">
                                                     {item.image_url && <img src={item.image_url} className="h-full w-full object-cover pointer-events-none select-none" draggable={false} />}
                                                 </div>
-                                                <div className="min-w-0 flex-1">
+                                                 <div className="min-w-0 flex-1">
                                                     <h5 className="font-black italic uppercase truncate text-[13px]">{item.name}</h5>
-                                                    <p className="font-bold text-xs">₹{item.base_price}</p>
+                                                    <p className="font-bold text-xs">₹{item.price}</p>
                                                 </div>
                                                 <div className="flex items-center gap-2 bg-white/50 rounded-full p-1 border">
                                                     <button onClick={() => removeFromCart(item.id)} className="h-8 w-8 rounded-full hover:bg-white flex items-center justify-center transition-colors">
@@ -597,9 +633,9 @@ export default function POSPage() {
                                                     <div className="h-14 w-14 rounded-2xl bg-muted overflow-hidden shrink-0 select-none">
                                                         {item.image_url && <img src={item.image_url} className="h-full w-full object-cover pointer-events-none select-none" draggable={false} />}
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
+                                                     <div className="flex-1 min-w-0">
                                                         <h5 className="font-black italic uppercase text-sm truncate">{item.name}</h5>
-                                                        <p className="font-bold text-xs opacity-60">₹{item.base_price} / unit</p>
+                                                        <p className="font-bold text-xs opacity-60">₹{item.price} / unit</p>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <button onClick={() => removeFromCart(item.id)} className="h-10 w-10 rounded-full border bg-background flex items-center justify-center active:scale-90">
