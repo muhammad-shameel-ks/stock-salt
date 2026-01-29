@@ -132,11 +132,15 @@ export default function ExtremeDashboard() {
     if (user) {
       fetchData();
 
+      // Optimized Realtime Subscription
       const channel = supabase
         .channel('extreme-dash-sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_stocks' }, () => fetchData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'transaction_items' }, () => fetchData())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, (payload) => {
+          setTransactions(prev => [payload.new as Transaction, ...prev]);
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transaction_items' }, () => {
+          fetchData();
+        })
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
