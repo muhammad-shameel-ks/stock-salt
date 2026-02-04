@@ -4,7 +4,7 @@
 
 Stock Salt is a complete business management solution designed for businesses with multiple retail outlets. It provides real-time visibility into sales, inventory distribution, and revenue metrics across all your branches from a single dashboard.
 
-![Stock Salt Dashboard](https://stock-salt.vercel.app/)
+
 
 ---
 
