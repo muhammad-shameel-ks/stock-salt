@@ -9,27 +9,39 @@ import {
 } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { LoadingScreen } from "@/components/loading-screen";
+import { DatabaseInactivePage } from "@/components/database-inactive-page";
+import { checkDatabaseHealth } from "@/lib/db-health";
 
 interface SessionContextType {
   session: any | null;
   user: any | null;
   loading: boolean;
+  dbHealthy: boolean;
 }
 
 const SessionContext = createContext<SessionContextType>({
   session: null,
   user: null,
   loading: true,
+  dbHealthy: true,
 });
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<any | null>(null);
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dbHealthy, setDbHealthy] = useState(true);
 
   useEffect(() => {
-    // Get initial session
     const getSession = async () => {
+      const isHealthy = await checkDatabaseHealth();
+      setDbHealthy(isHealthy);
+
+      if (!isHealthy) {
+        setLoading(false);
+        return;
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -37,7 +49,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setUser(session?.user || null);
       setLoading(false);
 
-      // Listen for auth changes
       const {
         data: { subscription },
       } = await supabase.auth.onAuthStateChange((event: any, session: any) => {
@@ -58,8 +69,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return <LoadingScreen />;
   }
 
+  if (!dbHealthy) {
+    return <DatabaseInactivePage />;
+  }
+
   return (
-    <SessionContext.Provider value={{ session, user, loading }}>
+    <SessionContext.Provider value={{ session, user, loading, dbHealthy }}>
       {children}
     </SessionContext.Provider>
   );
