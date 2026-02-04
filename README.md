@@ -362,8 +362,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you have questions or need help:
 
-- 📧 Email: support@stocksalt.com
-- 💬 GitHub Issues: [Report a bug](https://github.com/yourusername/stock-salt/issues)
+- 📧 Email: muhammadshameelks@gmail.com
+- 💬 GitHub Issues: [Report a bug](https://github.com/muhammad-shameel-ks/stock-salt/issues)
 - 📖 Docs: Check the `/docs` folder in the repository
 
 ---
