@@ -101,11 +101,9 @@ export default function POSPage() {
                     schema: 'public',
                     table: 'daily_stocks'
                 }, (payload) => {
-                    const { item_id, quantity } = payload.new;
-                    setInventory(prev => ({
-                        ...prev,
-                        [item_id]: (prev[item_id] || 0) + Number(quantity)
-                    }));
+                    // Recalculate inventory from database to account for sales
+                    // Can't just add quantity because it ignores today's sales
+                    fetchInventory();
                     setIsLocked(false);
                 })
                 .on('postgres_changes', {
@@ -113,11 +111,9 @@ export default function POSPage() {
                     schema: 'public',
                     table: 'daily_stocks'
                 }, (payload) => {
-                    const { item_id, quantity } = payload.new;
-                    setInventory(prev => ({
-                        ...prev,
-                        [item_id]: Number(quantity)
-                    }));
+                    // Recalculate inventory from database to account for sales
+                    // Can't just set quantity because it ignores today's sales
+                    fetchInventory();
                 })
                 .on('postgres_changes', {
                     event: 'INSERT',
