@@ -43,3 +43,6 @@ opencode.json
 
 # kilocode
 .kilocode/
+
+# docs
+docs/PERFORMANCE_ROADMAP.md
