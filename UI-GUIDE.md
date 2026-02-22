@@ -64,6 +64,7 @@ For data entry and editing (e.g., `MenuForm`):
 - **Tactile Data Entry**:
     - **Inputs**: `rounded-2xl`, `bg-muted/30`, and `border-none`. Use `shadow-inner` for a "pressed into the surface" look.
     - **Toggles/Checkboxes**: Group in a dedicated container with `bg-muted/30` and `border-2 border-dashed`.
+<!-- SIX SEVEEEEN -->
 - **Button Synergy**:
     - **Cancel**: Use a `ghost` or `outline` variant with `rounded-xl` for a softer feel.
     - **Primary Action**: A high-contrast, `rounded-full` button with a subtle shadow (`shadow-primary/20`) and `active:scale-95`.
